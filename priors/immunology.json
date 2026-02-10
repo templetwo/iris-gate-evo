@@ -1,0 +1,84 @@
+{
+  "domain": "immunology",
+  "version": "0.1.0",
+  "description": "Quantitative priors for immune cell dynamics, cytokine signaling, antibody kinetics, and inflammation",
+  "priors": [
+    {
+      "param": "IgG_serum_concentration",
+      "value": [7, 16],
+      "unit": "mg/mL",
+      "type": 0,
+      "source": "Standard clinical reference range, adult serum IgG"
+    },
+    {
+      "param": "IgG_half_life",
+      "value": 21,
+      "unit": "days",
+      "type": 0,
+      "source": "Waldmann & Strober 1969, IgG serum half-life"
+    },
+    {
+      "param": "TNFalpha_serum_healthy",
+      "value": [0, 8.1],
+      "unit": "pg/mL",
+      "type": 0,
+      "source": "Standard clinical reference, TNF-alpha normal range"
+    },
+    {
+      "param": "IL6_serum_healthy",
+      "value": [0, 7],
+      "unit": "pg/mL",
+      "type": 0,
+      "source": "Standard clinical reference, IL-6 normal range"
+    },
+    {
+      "param": "CRP_inflammation_threshold",
+      "value": 10,
+      "unit": "mg/L",
+      "type": 0,
+      "source": "Clinical cutoff: CRP > 10 mg/L indicates significant inflammation"
+    },
+    {
+      "param": "T_cell_doubling_time_activated",
+      "value": [8, 12],
+      "unit": "hours",
+      "type": 1,
+      "source": "Yoon et al. 2010, activated T cell proliferation rate"
+    },
+    {
+      "param": "NK_cell_killing_rate",
+      "value": [2, 6],
+      "unit": "targets/NK/day",
+      "type": 1,
+      "source": "Bhat & Bheemshetty 2016, NK cell cytotoxicity rate"
+    },
+    {
+      "param": "antibody_affinity_maturation_fold",
+      "value": [10, 1000],
+      "unit": "fold_increase",
+      "type": 1,
+      "source": "Victora & Nussenzweig 2012, affinity increase during germinal center reaction"
+    },
+    {
+      "param": "PD1_PDL1_Kd",
+      "value": 8.2,
+      "unit": "uM",
+      "type": 1,
+      "source": "Cheng et al. 2013, PD-1/PD-L1 binding affinity"
+    },
+    {
+      "param": "checkpoint_inhibitor_response_rate",
+      "value": [0.15, 0.40],
+      "unit": "fraction",
+      "type": 1,
+      "source": "Ribas & Wolchok 2018, anti-PD-1 objective response rates across cancer types"
+    },
+    {
+      "param": "cytokine_storm_IL6_threshold",
+      "value": 100,
+      "unit": "pg/mL",
+      "type": 1,
+      "source": "Chen et al. 2020, IL-6 threshold for cytokine release syndrome"
+    }
+  ]
+}

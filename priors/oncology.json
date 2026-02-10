@@ -1,0 +1,84 @@
+{
+  "domain": "oncology",
+  "version": "0.1.0",
+  "description": "Quantitative priors for tumor biology, cancer progression, therapeutic response, and survival metrics",
+  "priors": [
+    {
+      "param": "tumor_doubling_time_solid",
+      "value": [30, 300],
+      "unit": "days",
+      "type": 1,
+      "source": "Friberg & Mattson 1997, solid tumor volume doubling time range"
+    },
+    {
+      "param": "Warburg_effect_glucose_uptake_ratio",
+      "value": [5, 200],
+      "unit": "fold_vs_normal",
+      "type": 1,
+      "source": "Warburg 1956, tumor glycolysis rate vs normal tissue"
+    },
+    {
+      "param": "tumor_pH_extracellular",
+      "value": [6.5, 6.9],
+      "unit": "pH",
+      "type": 0,
+      "source": "Vaupel et al. 1989, tumor microenvironment acidification"
+    },
+    {
+      "param": "normal_tissue_pH",
+      "value": 7.4,
+      "unit": "pH",
+      "type": 0,
+      "source": "Standard physiological pH"
+    },
+    {
+      "param": "tumor_hypoxia_pO2_threshold",
+      "value": 10,
+      "unit": "mmHg",
+      "type": 0,
+      "source": "Vaupel et al. 2007, pO2 < 10 mmHg defines tumor hypoxia"
+    },
+    {
+      "param": "angiogenesis_VEGF_EC50",
+      "value": 0.1,
+      "unit": "nM",
+      "type": 1,
+      "source": "Ferrara 2004, VEGF-A binding to VEGFR2"
+    },
+    {
+      "param": "metastasis_circulating_tumor_cells",
+      "value": [1, 100],
+      "unit": "cells/mL_blood",
+      "type": 1,
+      "source": "Allard et al. 2004, CTC range in metastatic cancer"
+    },
+    {
+      "param": "apoptosis_caspase3_activation_time",
+      "value": [2, 8],
+      "unit": "hours",
+      "type": 1,
+      "source": "Bhola & Bhutia 2015, time to caspase-3 activation after apoptotic signal"
+    },
+    {
+      "param": "five_year_survival_all_cancers",
+      "value": 0.67,
+      "unit": "fraction",
+      "type": 0,
+      "source": "SEER 2020, overall 5-year relative survival rate, all cancers combined"
+    },
+    {
+      "param": "radiation_linear_quadratic_alpha",
+      "value": [0.1, 0.5],
+      "unit": "Gy^-1",
+      "type": 1,
+      "source": "Dale 1985, alpha parameter in LQ model for various tumor types"
+    },
+    {
+      "param": "PDL1_positive_tumor_threshold",
+      "value": 0.01,
+      "unit": "TPS_fraction",
+      "type": 1,
+      "source": "FDA approval threshold: PD-L1 TPS >= 1% for pembrolizumab eligibility"
+    }
+  ]
+}

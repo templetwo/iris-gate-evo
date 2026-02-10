@@ -1,0 +1,84 @@
+{
+  "domain": "genetics",
+  "version": "0.1.0",
+  "description": "Quantitative priors for gene expression, mutation rates, CRISPR efficiency, epigenetics, and genomic parameters",
+  "priors": [
+    {
+      "param": "human_genome_size",
+      "value": 3.2e9,
+      "unit": "bp",
+      "type": 0,
+      "source": "Human Genome Project, haploid genome size"
+    },
+    {
+      "param": "human_protein_coding_genes",
+      "value": 20000,
+      "unit": "genes",
+      "type": 0,
+      "source": "GENCODE v44, approximately 20,000 protein-coding genes"
+    },
+    {
+      "param": "somatic_mutation_rate",
+      "value": 1.1e-8,
+      "unit": "per_bp_per_generation",
+      "type": 0,
+      "source": "Kong et al. 2012, de novo germline mutation rate"
+    },
+    {
+      "param": "CRISPR_Cas9_on_target_efficiency",
+      "value": [0.30, 0.80],
+      "unit": "fraction",
+      "type": 1,
+      "source": "Hsu et al. 2013, SpCas9 on-target editing efficiency range"
+    },
+    {
+      "param": "CRISPR_off_target_rate",
+      "value": [0.01, 0.10],
+      "unit": "fraction",
+      "type": 1,
+      "source": "Zhang et al. 2015, off-target editing frequency range"
+    },
+    {
+      "param": "CpG_methylation_promoter_silencing",
+      "value": 0.70,
+      "unit": "fraction",
+      "type": 1,
+      "source": "Jones 2012, promoter CpG methylation typically silences transcription"
+    },
+    {
+      "param": "mRNA_half_life_median_human",
+      "value": 7,
+      "unit": "hours",
+      "type": 1,
+      "source": "Schwanhausser et al. 2011, median mRNA half-life in mammalian cells"
+    },
+    {
+      "param": "tumor_mutation_burden_high",
+      "value": 10,
+      "unit": "mutations/Mb",
+      "type": 1,
+      "source": "Chalmers et al. 2017, TMB-high threshold for immunotherapy response"
+    },
+    {
+      "param": "p53_mutation_frequency_cancer",
+      "value": 0.50,
+      "unit": "fraction",
+      "type": 0,
+      "source": "Kandoth et al. 2013, TP53 mutated in ~50% of all cancers"
+    },
+    {
+      "param": "telomere_shortening_rate",
+      "value": [30, 100],
+      "unit": "bp/year",
+      "type": 1,
+      "source": "Aubert & Lansdorp 2008, telomere attrition rate in humans"
+    },
+    {
+      "param": "siRNA_knockdown_efficiency",
+      "value": [0.70, 0.95],
+      "unit": "fraction",
+      "type": 1,
+      "source": "Elbashir et al. 2001, typical siRNA gene silencing efficiency"
+    }
+  ]
+}

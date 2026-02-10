@@ -1,0 +1,77 @@
+{
+  "domain": "physics",
+  "version": "0.1.0",
+  "description": "Quantitative priors for fundamental physics, field theory, statistical mechanics, and phase transitions",
+  "priors": [
+    {
+      "param": "speed_of_light",
+      "value": 2.998e8,
+      "unit": "m/s",
+      "type": 0,
+      "source": "CODATA 2018, exact value"
+    },
+    {
+      "param": "Planck_constant",
+      "value": 6.626e-34,
+      "unit": "J*s",
+      "type": 0,
+      "source": "CODATA 2018"
+    },
+    {
+      "param": "gravitational_constant",
+      "value": 6.674e-11,
+      "unit": "m^3/(kg*s^2)",
+      "type": 0,
+      "source": "CODATA 2018"
+    },
+    {
+      "param": "fine_structure_constant",
+      "value": 0.007297,
+      "unit": "dimensionless",
+      "type": 0,
+      "source": "CODATA 2018, alpha = e^2/(4*pi*epsilon0*hbar*c)"
+    },
+    {
+      "param": "CMB_temperature",
+      "value": 2.725,
+      "unit": "K",
+      "type": 0,
+      "source": "Fixsen 2009, cosmic microwave background temperature"
+    },
+    {
+      "param": "Ising_2D_critical_temperature",
+      "value": 2.269,
+      "unit": "J/kB",
+      "type": 0,
+      "source": "Onsager 1944, exact solution Tc/J = 2/ln(1+sqrt(2))"
+    },
+    {
+      "param": "Ising_3D_critical_exponent_beta",
+      "value": 0.3265,
+      "unit": "dimensionless",
+      "type": 0,
+      "source": "El-Showk et al. 2014, conformal bootstrap result"
+    },
+    {
+      "param": "percolation_threshold_2D_square",
+      "value": 0.5927,
+      "unit": "dimensionless",
+      "type": 0,
+      "source": "Standard result, site percolation on 2D square lattice"
+    },
+    {
+      "param": "Hubble_constant",
+      "value": [67, 73],
+      "unit": "km/s/Mpc",
+      "type": 1,
+      "source": "Planck 2018 (67.4) vs SH0ES 2022 (73.0), Hubble tension"
+    },
+    {
+      "param": "dark_energy_fraction",
+      "value": 0.685,
+      "unit": "fraction",
+      "type": 1,
+      "source": "Planck 2018, dark energy density parameter Omega_Lambda"
+    }
+  ]
+}

@@ -1,0 +1,77 @@
+{
+  "domain": "ecology",
+  "version": "0.1.0",
+  "description": "Quantitative priors for population dynamics, ecosystem function, biodiversity, and climate-ecology interactions",
+  "priors": [
+    {
+      "param": "global_species_estimate",
+      "value": [8.0e6, 1.0e7],
+      "unit": "species",
+      "type": 1,
+      "source": "Mora et al. 2011, estimated total eukaryotic species on Earth"
+    },
+    {
+      "param": "extinction_rate_background",
+      "value": [0.1, 1.0],
+      "unit": "E/MSY",
+      "type": 1,
+      "source": "De Vos et al. 2015, background extinction rate (extinctions per million species-years)"
+    },
+    {
+      "param": "extinction_rate_current",
+      "value": [100, 1000],
+      "unit": "E/MSY",
+      "type": 1,
+      "source": "Pimm et al. 2014, current extinction rate 100-1000x background"
+    },
+    {
+      "param": "species_area_exponent_z",
+      "value": [0.15, 0.35],
+      "unit": "dimensionless",
+      "type": 0,
+      "source": "Preston 1962, species-area relationship S = cA^z"
+    },
+    {
+      "param": "NPP_terrestrial_global",
+      "value": 56.4,
+      "unit": "Pg_C/yr",
+      "type": 1,
+      "source": "Zhao et al. 2005, global terrestrial net primary production"
+    },
+    {
+      "param": "ocean_carbon_sink",
+      "value": 2.5,
+      "unit": "Pg_C/yr",
+      "type": 1,
+      "source": "Friedlingstein et al. 2022, Global Carbon Budget ocean CO2 uptake"
+    },
+    {
+      "param": "trophic_level_energy_transfer",
+      "value": 0.10,
+      "unit": "fraction",
+      "type": 0,
+      "source": "Lindeman 1942, ~10% energy transfer between trophic levels"
+    },
+    {
+      "param": "coral_bleaching_temperature_threshold",
+      "value": 1.0,
+      "unit": "degC_above_summer_max",
+      "type": 0,
+      "source": "Hughes et al. 2017, 1C above max monthly mean triggers bleaching"
+    },
+    {
+      "param": "carrying_capacity_logistic_inflection",
+      "value": 0.5,
+      "unit": "K_fraction",
+      "type": 0,
+      "source": "Verhulst 1838, maximum growth rate at N = K/2"
+    },
+    {
+      "param": "biodiversity_intactness_index_global",
+      "value": 0.75,
+      "unit": "fraction",
+      "type": 1,
+      "source": "Newbold et al. 2016, global average BII has declined ~25%"
+    }
+  ]
+}

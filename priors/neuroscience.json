@@ -1,0 +1,84 @@
+{
+  "domain": "neuroscience",
+  "version": "0.1.0",
+  "description": "Quantitative priors for neural signaling, synaptic transmission, neurotransmitter dynamics, and brain connectivity",
+  "priors": [
+    {
+      "param": "synaptic_cleft_width",
+      "value": 20,
+      "unit": "nm",
+      "type": 0,
+      "source": "Bhatt et al. 2001, standard synaptic cleft dimension"
+    },
+    {
+      "param": "glutamate_NMDA_EC50",
+      "value": 2.3,
+      "unit": "uM",
+      "type": 1,
+      "source": "Patneau & Mayer 1990, NMDA receptor glutamate sensitivity"
+    },
+    {
+      "param": "GABA_A_receptor_EC50",
+      "value": 15,
+      "unit": "uM",
+      "type": 1,
+      "source": "Macdonald & Olsen 1994, GABA-A receptor activation"
+    },
+    {
+      "param": "dopamine_D2_Kd",
+      "value": 0.44,
+      "unit": "nM",
+      "type": 1,
+      "source": "Seeman 2006, D2 receptor affinity for dopamine"
+    },
+    {
+      "param": "serotonin_reuptake_Km",
+      "value": 0.46,
+      "unit": "uM",
+      "type": 1,
+      "source": "Blakely et al. 1994, SERT transporter kinetics"
+    },
+    {
+      "param": "BDNF_serum_healthy",
+      "value": [20, 30],
+      "unit": "ng/mL",
+      "type": 1,
+      "source": "Karege et al. 2002, serum BDNF in healthy adults"
+    },
+    {
+      "param": "BDNF_serum_depression",
+      "value": [10, 18],
+      "unit": "ng/mL",
+      "type": 1,
+      "source": "Karege et al. 2002, reduced BDNF in major depression"
+    },
+    {
+      "param": "cortical_neuron_firing_rate_spontaneous",
+      "value": [0.1, 10],
+      "unit": "Hz",
+      "type": 1,
+      "source": "Softky & Koch 1993, cortical neuron firing rate distribution"
+    },
+    {
+      "param": "axon_conduction_velocity_myelinated",
+      "value": [10, 120],
+      "unit": "m/s",
+      "type": 0,
+      "source": "Hursh 1939, myelinated axon conduction speed range"
+    },
+    {
+      "param": "blood_brain_barrier_MW_cutoff",
+      "value": 400,
+      "unit": "Da",
+      "type": 1,
+      "source": "Pardridge 2005, BBB passive diffusion molecular weight limit"
+    },
+    {
+      "param": "neurogenesis_adult_hippocampus_rate",
+      "value": 700,
+      "unit": "neurons/day",
+      "type": 2,
+      "source": "Spalding et al. 2013, adult human hippocampal neurogenesis"
+    }
+  ]
+}

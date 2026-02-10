@@ -1,0 +1,77 @@
+{
+  "domain": "materials",
+  "version": "0.1.0",
+  "description": "Quantitative priors for materials science, nanomaterials, polymer physics, and solid-state properties",
+  "priors": [
+    {
+      "param": "graphene_Young_modulus",
+      "value": 1.0,
+      "unit": "TPa",
+      "type": 0,
+      "source": "Lee et al. 2008, Science, graphene elastic modulus"
+    },
+    {
+      "param": "graphene_thermal_conductivity",
+      "value": 5000,
+      "unit": "W/mK",
+      "type": 0,
+      "source": "Balandin et al. 2008, graphene thermal conductivity"
+    },
+    {
+      "param": "silicon_band_gap",
+      "value": 1.12,
+      "unit": "eV",
+      "type": 0,
+      "source": "Standard reference, Si band gap at 300K"
+    },
+    {
+      "param": "perovskite_solar_cell_efficiency_record",
+      "value": 0.262,
+      "unit": "fraction",
+      "type": 1,
+      "source": "NREL 2024, certified perovskite solar cell record efficiency"
+    },
+    {
+      "param": "steel_yield_strength_structural",
+      "value": [250, 690],
+      "unit": "MPa",
+      "type": 0,
+      "source": "ASTM A36/A992, structural steel yield strength range"
+    },
+    {
+      "param": "polymer_glass_transition_Tg_PS",
+      "value": 100,
+      "unit": "degC",
+      "type": 0,
+      "source": "Standard reference, polystyrene glass transition temperature"
+    },
+    {
+      "param": "nanoparticle_EPR_size_range",
+      "value": [10, 200],
+      "unit": "nm",
+      "type": 1,
+      "source": "Maeda 2001, nanoparticle size for enhanced permeability and retention"
+    },
+    {
+      "param": "lithium_ion_energy_density",
+      "value": [250, 400],
+      "unit": "Wh/kg",
+      "type": 1,
+      "source": "Goodenough & Park 2013, Li-ion battery specific energy range"
+    },
+    {
+      "param": "superconductor_YBCO_Tc",
+      "value": 93,
+      "unit": "K",
+      "type": 0,
+      "source": "Wu et al. 1987, YBCO critical temperature"
+    },
+    {
+      "param": "PLGA_degradation_time",
+      "value": [1, 6],
+      "unit": "months",
+      "type": 1,
+      "source": "Makadia & Siegel 2011, PLGA biodegradation timeline for drug delivery"
+    }
+  ]
+}

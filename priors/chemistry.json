@@ -1,0 +1,77 @@
+{
+  "domain": "chemistry",
+  "version": "0.1.0",
+  "description": "Quantitative priors for chemical kinetics, thermodynamics, reaction mechanisms, and molecular properties",
+  "priors": [
+    {
+      "param": "Avogadro_number",
+      "value": 6.022e23,
+      "unit": "mol^-1",
+      "type": 0,
+      "source": "CODATA 2018, Avogadro constant"
+    },
+    {
+      "param": "Boltzmann_constant",
+      "value": 1.38e-23,
+      "unit": "J/K",
+      "type": 0,
+      "source": "CODATA 2018"
+    },
+    {
+      "param": "water_autoionization_Kw",
+      "value": 1.0e-14,
+      "unit": "M^2",
+      "type": 0,
+      "source": "Standard: Kw = [H+][OH-] at 25C"
+    },
+    {
+      "param": "hydrogen_bond_energy",
+      "value": [4, 40],
+      "unit": "kJ/mol",
+      "type": 0,
+      "source": "Steiner 2002, hydrogen bond energy range"
+    },
+    {
+      "param": "C_C_bond_energy",
+      "value": 346,
+      "unit": "kJ/mol",
+      "type": 0,
+      "source": "Lide 2005, CRC Handbook, C-C single bond dissociation energy"
+    },
+    {
+      "param": "diffusion_coefficient_small_molecule_water",
+      "value": [0.5, 2.0],
+      "unit": "1e-9 m^2/s",
+      "type": 1,
+      "source": "Cussler 2009, typical small molecule diffusion in water at 25C"
+    },
+    {
+      "param": "Arrhenius_activation_energy_typical",
+      "value": [40, 200],
+      "unit": "kJ/mol",
+      "type": 1,
+      "source": "Typical range for organic reactions in solution"
+    },
+    {
+      "param": "enzyme_kcat_median",
+      "value": 10,
+      "unit": "s^-1",
+      "type": 1,
+      "source": "Bar-Even et al. 2011, median enzyme turnover number"
+    },
+    {
+      "param": "enzyme_Km_median",
+      "value": 130,
+      "unit": "uM",
+      "type": 1,
+      "source": "Bar-Even et al. 2011, median Michaelis constant"
+    },
+    {
+      "param": "lipophilicity_drug_like_logP",
+      "value": [1, 5],
+      "unit": "dimensionless",
+      "type": 1,
+      "source": "Lipinski Rule of 5: logP <= 5 for oral bioavailability"
+    }
+  ]
+}

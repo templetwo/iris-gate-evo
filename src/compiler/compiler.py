@@ -6,6 +6,9 @@ quantitative priors. This is the innovation: without prior injection,
 you have five chatbots. With it, you have five constrained scientific
 minds pushing against real numbers.
 
+Detection is hybrid: fast keyword scoring first, embedding similarity
+fallback when keywords miss. The models should think, not rediscover.
+
 C0 fires once per session. Then PULSE carries the signal.
 """
 
@@ -17,33 +20,150 @@ from typing import Optional
 
 from src.models import MODELS, TOKEN_BUDGETS
 
-# Domain detection keywords — lowercase, matched against question
+# ---------------------------------------------------------------------------
+# Domain detection: keywords (fast path) + descriptions (embedding fallback)
+# ---------------------------------------------------------------------------
+
+# Keywords — lowercase, matched against question. Need >= 2 hits to trigger.
 DOMAIN_TRIGGERS = {
     "pharmacology": [
         "receptor", "binding", "kd", "ic50", "dose-response", "dose response",
         "agonist", "antagonist", "cbd", "thc", "drug", "therapeutic",
         "pharmacokinetic", "bioavailability", "cytotoxicity", "apoptosis",
-        "vdac", "trpv", "selectivity",
+        "vdac", "trpv", "selectivity", "half-life", "clearance",
+        "metabolism", "inhibitor", "efficacy", "potency", "toxicity",
     ],
     "bioelectric": [
         "membrane potential", "gap junction", "v_mem", "vmem",
         "depolarization", "hyperpolarization", "ion channel", "bioelectric",
         "connexin", "calcium wave", "ros", "mitochondrial membrane",
-        "voltage-gated", "regeneration",
+        "voltage-gated", "regeneration", "planaria", "xenopus",
+        "morphogenesis", "wound healing", "patterning",
     ],
     "consciousness": [
         "kuramoto", "oscillator", "coherence", "r-value", "entropy",
         "lantern", "phase synchronization", "consciousness", "awareness",
-        "phi", "integrated information", "binding problem",
+        "phi", "integrated information", "binding problem", "qualia",
+        "global workspace", "attention", "metacognition",
+    ],
+    "neuroscience": [
+        "neuron", "synapse", "synaptic", "neurotransmitter", "dopamine",
+        "serotonin", "gaba", "glutamate", "nmda", "ampa", "cortex",
+        "hippocampus", "axon", "dendrite", "brain", "neural", "bdnf",
+        "neuroplasticity", "neurodegeneration", "alzheimer", "parkinson",
+        "blood-brain barrier", "bbb", "electroencephalography", "eeg",
+    ],
+    "immunology": [
+        "immune", "antibody", "antigen", "t cell", "b cell", "cytokine",
+        "inflammation", "inflammatory", "interleukin", "il-6", "tnf",
+        "autoimmune", "vaccine", "immunotherapy", "pd-1", "pd-l1",
+        "checkpoint", "nk cell", "macrophage", "complement",
+        "immunoglobulin", "igg", "mhc", "hla",
+    ],
+    "genetics": [
+        "gene", "genome", "genomic", "mutation", "crispr", "cas9",
+        "expression", "transcription", "epigenetic", "methylation",
+        "chromosome", "allele", "genotype", "phenotype", "snp",
+        "variant", "sequencing", "rna", "mrna", "sirna", "knockout",
+        "transgenic", "hereditary", "telomere", "p53",
+    ],
+    "oncology": [
+        "tumor", "cancer", "carcinoma", "metastasis", "oncogene",
+        "malignant", "benign", "chemotherapy", "radiation therapy",
+        "angiogenesis", "warburg", "glycolysis", "tumor microenvironment",
+        "immunotherapy", "checkpoint inhibitor", "survival rate",
+        "staging", "biopsy", "remission", "oncology",
+    ],
+    "chemistry": [
+        "reaction", "catalyst", "enzyme", "kinetics", "thermodynamics",
+        "equilibrium", "activation energy", "bond", "molecule", "polymer",
+        "synthesis", "oxidation", "reduction", "acid", "base", "ph",
+        "solubility", "diffusion", "arrhenius", "michaelis",
+    ],
+    "ecology": [
+        "ecosystem", "biodiversity", "species", "population", "extinction",
+        "habitat", "climate change", "carbon", "trophic", "food web",
+        "conservation", "coral", "deforestation", "invasive species",
+        "carrying capacity", "ecological", "biome", "nitrogen cycle",
+    ],
+    "materials": [
+        "material", "alloy", "ceramic", "polymer", "nanoparticle",
+        "graphene", "semiconductor", "band gap", "crystal", "lattice",
+        "tensile strength", "yield strength", "conductivity", "solar cell",
+        "battery", "superconductor", "composite", "nanomaterial",
+        "thin film", "coating",
     ],
     "physics": [
         "field", "coupling", "hamiltonian", "lagrangian", "energy landscape",
         "phase transition", "critical point", "renormalization",
-        "symmetry breaking", "order parameter",
+        "symmetry breaking", "order parameter", "quantum", "relativity",
+        "entropy", "statistical mechanics", "percolation",
+        "cosmology", "dark energy", "dark matter",
     ],
 }
 
+# Descriptions for embedding-based fallback — one sentence per domain
+DOMAIN_DESCRIPTIONS = {
+    "pharmacology": "Drug receptor binding kinetics, dose-response relationships, pharmacokinetics, and therapeutic mechanisms of action",
+    "bioelectric": "Membrane potential signaling, gap junction communication, ion channel dynamics, bioelectric control of morphogenesis and regeneration",
+    "consciousness": "Neural oscillator coupling, phase synchronization, entropy measures, integrated information theory, and phenomenal awareness",
+    "neuroscience": "Brain function, synaptic transmission, neurotransmitter systems, neural circuits, and neurological disease mechanisms",
+    "immunology": "Immune cell dynamics, antibody kinetics, cytokine signaling, immunotherapy, and inflammatory response",
+    "genetics": "Gene expression regulation, CRISPR editing, epigenetics, mutation rates, and genomic variation",
+    "oncology": "Tumor biology, cancer metabolism, metastasis mechanisms, therapeutic response, and survival outcomes",
+    "chemistry": "Chemical reaction kinetics, catalysis, enzyme mechanisms, thermodynamics, and molecular interactions",
+    "ecology": "Population dynamics, ecosystem function, biodiversity metrics, climate-ecology interactions, and conservation biology",
+    "materials": "Materials properties, nanomaterials, semiconductor physics, energy storage, and polymer science",
+    "physics": "Fundamental forces, field theory, statistical mechanics, phase transitions, and cosmological parameters",
+}
+
 PRIORS_DIR = Path(__file__).parent.parent.parent / "priors"
+
+# Embedding model — loaded lazily on first use
+_embedding_model = None
+_domain_embeddings = None
+
+
+def _get_embedding_model():
+    """Lazy-load sentence-transformers model. Only called when keywords miss."""
+    global _embedding_model
+    if _embedding_model is None:
+        from sentence_transformers import SentenceTransformer
+        _embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
+    return _embedding_model
+
+
+def _get_domain_embeddings():
+    """Compute and cache domain description embeddings."""
+    global _domain_embeddings
+    if _domain_embeddings is None:
+        model = _get_embedding_model()
+        _domain_embeddings = {}
+        for domain, desc in DOMAIN_DESCRIPTIONS.items():
+            _domain_embeddings[domain] = model.encode(desc, normalize_embeddings=True)
+    return _domain_embeddings
+
+
+def _embedding_similarity(question: str, threshold: float = 0.35) -> list[tuple[str, float]]:
+    """Score domains by cosine similarity to the question embedding.
+
+    Returns list of (domain, score) pairs above threshold, sorted by score.
+    """
+    model = _get_embedding_model()
+    domain_embeds = _get_domain_embeddings()
+
+    q_embed = model.encode(question, normalize_embeddings=True)
+
+    scored = []
+    for domain, d_embed in domain_embeds.items():
+        # Dot product of normalized vectors = cosine similarity
+        sim = float(q_embed @ d_embed)
+        if sim >= threshold:
+            scored.append((domain, sim))
+
+    scored.sort(key=lambda x: x[1], reverse=True)
+    return scored
+
 
 # The scaffold — identical for all five models
 SCAFFOLD_TEMPLATE = """\
@@ -92,25 +212,40 @@ false certainty.
 ═══════════════════════════════════════════════════════"""
 
 
-def detect_domains(question: str) -> list[str]:
+def detect_domains(question: str, use_embeddings: bool = True) -> list[str]:
     """Classify the question into one or more domains.
+
+    Hybrid detection:
+    1. Fast keyword scoring (primary path)
+    2. Embedding similarity fallback (when keywords miss)
 
     Returns a list of matched domain names, or ["general"] if none match.
     """
+    # --- Fast path: keyword scoring ---
     q_lower = question.lower()
-    matched = []
+    keyword_matched = []
 
     for domain, triggers in DOMAIN_TRIGGERS.items():
         score = sum(1 for t in triggers if t in q_lower)
         if score >= 2:
-            matched.append((domain, score))
+            keyword_matched.append((domain, score))
 
-    if not matched:
-        return ["general"]
+    if keyword_matched:
+        keyword_matched.sort(key=lambda x: x[1], reverse=True)
+        return [d for d, _ in keyword_matched]
 
-    # Sort by match strength, return domain names
-    matched.sort(key=lambda x: x[1], reverse=True)
-    return [d for d, _ in matched]
+    # --- Fallback: embedding similarity ---
+    if use_embeddings:
+        try:
+            embed_matched = _embedding_similarity(question, threshold=0.35)
+            if embed_matched:
+                # Take top 1-2 matches from embedding
+                return [d for d, _ in embed_matched[:2]]
+        except ImportError:
+            # sentence-transformers not installed — degrade gracefully
+            pass
+
+    return ["general"]
 
 
 def load_priors(domains: list[str]) -> list[dict]:

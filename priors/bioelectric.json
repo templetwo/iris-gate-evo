@@ -1,14 +1,14 @@
 {
   "domain": "bioelectric",
-  "version": "0.1.0",
-  "description": "Quantitative priors for membrane potential, gap junctions, and bioelectric signaling",
+  "version": "0.2.0",
+  "description": "Quantitative priors for membrane potential, gap junctions, ion channels, and bioelectric signaling in development and disease",
   "priors": [
     {
       "param": "cancer_cell_psi",
       "value": -120,
       "unit": "mV",
       "type": 0,
-      "source": "Yang & Bhrackett 2011; cancer cells consistently depolarized vs healthy"
+      "source": "Yang & Brackett 2011; cancer cells consistently depolarized vs healthy"
     },
     {
       "param": "healthy_cell_psi",
@@ -44,6 +44,69 @@
       "unit": "relative",
       "type": 1,
       "source": "Aasen et al. 2016, reduced GJ communication in tumors"
+    },
+    {
+      "param": "resting_membrane_potential_neuron",
+      "value": -70,
+      "unit": "mV",
+      "type": 0,
+      "source": "Hodgkin & Huxley 1952, standard neuronal resting potential"
+    },
+    {
+      "param": "action_potential_threshold",
+      "value": -55,
+      "unit": "mV",
+      "type": 0,
+      "source": "Standard neurophysiology, voltage-gated Na+ activation"
+    },
+    {
+      "param": "connexin43_pore_diameter",
+      "value": 1.5,
+      "unit": "nm",
+      "type": 1,
+      "source": "Maeda et al. 2009, Cx43 gap junction crystal structure"
+    },
+    {
+      "param": "Vmem_depolarized_proliferative",
+      "value": [-30, -10],
+      "unit": "mV",
+      "type": 0,
+      "source": "Levin 2012, depolarized cells tend toward proliferation"
+    },
+    {
+      "param": "Vmem_hyperpolarized_quiescent",
+      "value": [-90, -60],
+      "unit": "mV",
+      "type": 0,
+      "source": "Levin 2012, hyperpolarized cells tend toward quiescence/differentiation"
+    },
+    {
+      "param": "calcium_wave_velocity_tissue",
+      "value": [10, 50],
+      "unit": "um/s",
+      "type": 1,
+      "source": "Sanderson et al. 1994, intercellular calcium wave propagation"
+    },
+    {
+      "param": "planaria_regeneration_time",
+      "value": 7,
+      "unit": "days",
+      "type": 0,
+      "source": "Standard planaria head regeneration timeline, Reddien & Alvarado 2004"
+    },
+    {
+      "param": "xenopus_tail_regeneration_time",
+      "value": 7,
+      "unit": "days",
+      "type": 0,
+      "source": "Adams et al. 2007, Xenopus tadpole tail regeneration"
+    },
+    {
+      "param": "bioelectric_signal_range_tissue",
+      "value": [0.1, 5.0],
+      "unit": "mm",
+      "type": 1,
+      "source": "Levin 2014, bioelectric signaling range in morphogenesis"
     }
   ]
 }
