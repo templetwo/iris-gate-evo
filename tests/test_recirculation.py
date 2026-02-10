@@ -88,7 +88,7 @@ SAMPLE_COMPILED = {
     "domains": ["pharmacology"],
     "priors": [],
     "models": {},
-    "token_budgets": {"S1": 800, "S2_start": 800, "S2_end": 700, "S3": 600},
+    "token_budgets": {"S1": 800, "S3": 600},
     "cross_domain_flag": False,
 }
 
@@ -109,7 +109,7 @@ class TestBuildRecirculationContext:
 
         context = build_recirculation_context(s2, s3)
 
-        assert "PRIOR CONSENSUS" in context
+        assert "INDEPENDENT CONSENSUS" in context
         assert "CBD binds VDAC1" in context
         assert "CBD induces ROS" in context
         assert "p53" not in context  # TYPE 2 excluded
@@ -187,7 +187,6 @@ class TestBuildRecirculationContext:
 
         context = build_recirculation_context(s2, s3)
         assert "66%" in context
-        assert "90%" in context
 
     def test_caps_at_12_claims(self):
         claims = [(f"Claim number {i}", 0, 0.95, f"Mechanism {i}") for i in range(20)]

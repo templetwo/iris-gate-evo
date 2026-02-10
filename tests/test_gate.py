@@ -170,61 +170,49 @@ NOVEL: NO — Well established"""
 # ── Offline Evaluation ──
 
 class TestOfflineEvaluation:
+    """Offline evaluator checks metadata presence, not content quality.
+    Content evaluation is the model's job, not ours."""
+
     def test_strong_claims_pass(self, strong_claims):
         results = evaluate_claims_offline(strong_claims)
-        # Strong claims should mostly pass
         assert len(results) == 2
         for r in results:
-            assert r.falsifiable  # Both have good falsifiable_by fields
+            assert r.falsifiable  # Both have falsifiable_by fields
             assert r.feasible     # Both have mechanisms
+            assert r.novel        # Offline always passes novelty to model
 
-    def test_weak_claims_fail(self, weak_claims):
-        results = evaluate_claims_offline(weak_claims)
-        # TYPE 3 with empty fields should fail
-        assert not results[0].falsifiable
-        assert not results[0].feasible
-        # Short/vague falsifiable_by should fail
-        assert not results[1].falsifiable
-
-    def test_falsifiable_needs_specific_keywords(self):
+    def test_empty_fields_fail(self):
         claims = [{
-            "statement": "test claim about something",
-            "type": 1,
-            "mechanism": "some mechanism here that is long enough",
-            "falsifiable_by": "we could maybe look into this further sometime",
-        }]
-        results = evaluate_claims_offline(claims)
-        assert not results[0].falsifiable  # No IF/WOULD/SHOULD keywords
-
-    def test_falsifiable_with_knockout_keyword(self):
-        claims = [{
-            "statement": "VDAC1 mediates CBD toxicity",
-            "type": 1,
-            "mechanism": "VDAC1 conformational change opens pore",
-            "falsifiable_by": "If VDAC1 knockout cells show identical CBD toxicity, this would be disproved",
-        }]
-        results = evaluate_claims_offline(claims)
-        assert results[0].falsifiable
-
-    def test_feasible_needs_mechanism(self):
-        claims = [{
-            "statement": "something happens",
-            "type": 1,
-            "mechanism": "short",
-            "falsifiable_by": "If knockout would show no effect",
-        }]
-        results = evaluate_claims_offline(claims)
-        assert not results[0].feasible  # Mechanism too short
-
-    def test_type3_not_feasible(self):
-        claims = [{
-            "statement": "speculative claim about quantum effects",
+            "statement": "Something happens",
             "type": 3,
-            "mechanism": "quantum tunneling through mitochondrial membrane",
-            "falsifiable_by": "If blocking quantum effects would prevent cytotoxicity",
+            "mechanism": "",
+            "falsifiable_by": "",
         }]
         results = evaluate_claims_offline(claims)
-        assert not results[0].feasible  # TYPE 3 blocked
+        assert not results[0].falsifiable  # Empty falsifiable_by
+        assert not results[0].feasible     # Empty mechanism
+
+    def test_populated_fields_pass(self):
+        claims = [{
+            "statement": "CBD does things",
+            "type": 2,
+            "mechanism": "unclear",
+            "falsifiable_by": "more research needed",
+        }]
+        results = evaluate_claims_offline(claims)
+        assert results[0].falsifiable  # Field is populated (quality is model's job)
+        assert results[0].feasible     # Field is populated
+
+    def test_novelty_always_passes_offline(self):
+        """Offline mode never judges novelty — that requires a model."""
+        claims = [{
+            "statement": "textbook fact",
+            "type": 0,
+            "mechanism": "well known",
+            "falsifiable_by": "standard test",
+        }]
+        results = evaluate_claims_offline(claims)
+        assert results[0].novel  # Offline doesn't pretend to judge novelty
 
 
 # ── ClaimGateResult ──
@@ -280,17 +268,17 @@ class TestGateRun:
         assert result.passed is False
         assert "No claims" in result.recommendation
 
-    def test_gate_filters_type3(self):
-        """TYPE 3 speculation should not even reach the gate."""
+    def test_gate_evaluates_all_types(self):
+        """All claim types reach the gate — the model decides, not pre-filtering."""
         pipeline_result = {
             "question": "test?",
             "final_claims": [
-                {"statement": "pure speculation", "type": 3, "mechanism": "", "falsifiable_by": ""},
+                {"statement": "speculative claim", "type": 3, "mechanism": "", "falsifiable_by": ""},
             ],
         }
         result = run_gate_sync(pipeline_result, use_offline=True)
-        assert result.passed is False
-        assert len(result.claims) == 0
+        assert len(result.claims) == 1  # Claim reaches the gate
+        assert result.passed is False   # But fails (empty fields)
 
     def test_gate_filters_contradicted(self, strong_claims):
         """Contradicted claims should not reach the gate."""

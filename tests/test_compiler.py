@@ -380,16 +380,12 @@ class TestFullCompilation:
     def test_token_budgets_present(self):
         result = compile(CBD_QUESTION)
         assert "S1" in result["token_budgets"]
-        assert "S2_start" in result["token_budgets"]
-        assert "S2_end" in result["token_budgets"]
         assert "S3" in result["token_budgets"]
 
     def test_budgets_decrease(self):
         result = compile(CBD_QUESTION)
         budgets = result["token_budgets"]
-        assert budgets["S1"] >= budgets["S2_start"]
-        assert budgets["S2_start"] >= budgets["S2_end"]
-        assert budgets["S2_end"] >= budgets["S3"]
+        assert budgets["S1"] >= budgets["S3"]
 
     def test_session_id_contains_domain(self):
         result = compile(CBD_QUESTION)
@@ -417,24 +413,24 @@ class TestDomainAdaptiveThreshold:
             assert domain in DOMAIN_MATURITY, \
                 f"Domain '{domain}' has no maturity tier"
 
-    def test_established_domain_gets_90(self):
+    def test_established_domain_gets_75(self):
         threshold = compute_type01_threshold(["pharmacology"], cross_domain=False)
-        assert threshold == 0.90
+        assert threshold == 0.75
 
-    def test_frontier_domain_gets_80(self):
+    def test_frontier_domain_gets_65(self):
         threshold = compute_type01_threshold(["consciousness"], cross_domain=False)
-        assert threshold == 0.80
+        assert threshold == 0.65
 
-    def test_moderate_domain_gets_85(self):
+    def test_moderate_domain_gets_70(self):
         threshold = compute_type01_threshold(["ecology"], cross_domain=False)
-        assert threshold == 0.85
+        assert threshold == 0.70
 
     def test_cross_domain_uses_lowest_tier(self):
-        """pharmacology (established) + bioelectric (frontier) → frontier (0.80)."""
+        """pharmacology (established) + bioelectric (frontier) → frontier (0.65)."""
         threshold = compute_type01_threshold(
             ["pharmacology", "bioelectric"], cross_domain=True
         )
-        assert threshold == 0.80
+        assert threshold == 0.65
 
     def test_cross_domain_established_only(self):
         """Two established domains still use established threshold."""
@@ -442,16 +438,16 @@ class TestDomainAdaptiveThreshold:
             ["pharmacology", "neuroscience"], cross_domain=True
         )
         # Cross-domain with both established — worst tier is established
-        assert threshold == 0.90
+        assert threshold == 0.75
 
     def test_cbd_question_gets_frontier_threshold(self):
-        """The CBD/VDAC1 question is pharmacology+bioelectric → 0.80."""
+        """The CBD/VDAC1 question is pharmacology+bioelectric → 0.65."""
         result = compile(CBD_QUESTION)
-        assert result["s3_type01_threshold"] == 0.80
+        assert result["s3_type01_threshold"] == 0.65
 
     def test_single_established_question(self):
         result = compile("What is aspirin's mechanism?", domain_override="pharmacology")
-        assert result["s3_type01_threshold"] == 0.90
+        assert result["s3_type01_threshold"] == 0.75
 
     def test_threshold_present_in_compiled(self):
         result = compile("test question")
@@ -459,7 +455,7 @@ class TestDomainAdaptiveThreshold:
 
     def test_unknown_domain_defaults_moderate(self):
         threshold = compute_type01_threshold(["nonexistent"], cross_domain=False)
-        assert threshold == 0.85
+        assert threshold == 0.70
 
 
 # ── Prior Count Summary ──

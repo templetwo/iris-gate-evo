@@ -45,9 +45,7 @@ class TestModelRegistry:
 
 class TestTokenBudgets:
     def test_budgets_decrease(self):
-        assert TOKEN_BUDGETS["S1"] >= TOKEN_BUDGETS["S2_start"]
-        assert TOKEN_BUDGETS["S2_start"] >= TOKEN_BUDGETS["S2_end"]
-        assert TOKEN_BUDGETS["S2_end"] >= TOKEN_BUDGETS["S3"]
+        assert TOKEN_BUDGETS["S1"] >= TOKEN_BUDGETS["S3"]
 
     def test_s1_is_800(self):
         assert TOKEN_BUDGETS["S1"] == 800

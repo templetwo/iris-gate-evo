@@ -50,10 +50,8 @@ VERIFY_MODEL = {
     "provider": "perplexity",
 }
 
-# Token budgets decrease through stages — compression forces signal
+# Token budgets — S2 is now pure Python synthesis (0 API calls)
 TOKEN_BUDGETS = {
     "S1": 800,
-    "S2_start": 800,
-    "S2_end": 700,
     "S3": 600,
 }

@@ -1,4 +1,4 @@
-"""S1-S3 stage orchestration — Formulation, Refinement, Stable Attractor."""
+"""S1-S3 stage orchestration — Formulation, Synthesis, Stable Attractor."""
 
 from src.stages.stages import (
     run_pipeline,
@@ -7,3 +7,4 @@ from src.stages.stages import (
     build_recirculation_context,
     enrich_compiled_for_recirculation,
 )
+from src.stages.synthesis import run_s2_synthesis, SynthesizedClaim

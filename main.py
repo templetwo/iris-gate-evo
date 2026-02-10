@@ -69,23 +69,51 @@ def display_convergence(snapshot: dict, label: str = "S1") -> None:
           f"TYPE 0/1: {snapshot.get('type_01_ratio', 0):.2%}")
 
 
-def display_s2_progress(s2_result: dict) -> None:
-    """Display S2 debate round progress."""
-    print("\n" + "-" * 60)
-    print("S2 — REFINEMENT LOOP")
-    print("-" * 60)
-    for r in s2_result.get("rounds", []):
-        marker = " *STOP*" if r.get("early_stop") else ""
-        print(f"  Round {r['round']:2d} | J={r['jaccard']:.3f} cos={r['cosine']:.3f} "
-              f"JSD={r['jsd']:.3f} T01={r['type_01_ratio']:.2f} "
-              f"delta={r['delta']:.4f}{marker}")
+def display_s2_synthesis(s2_result: dict) -> None:
+    """Display S2 contribution synthesis results."""
+    synthesized = s2_result.get("synthesized_claims", [])
+    conflicts = s2_result.get("conflicts", [])
 
-    if s2_result.get("early_stopped"):
-        print(f"\n  Early-stopped at round {s2_result['total_rounds']} "
-              f"({s2_result['total_calls']} calls)")
-    else:
-        print(f"\n  Completed {s2_result['total_rounds']} rounds "
-              f"({s2_result['total_calls']} calls)")
+    print("\n" + "-" * 60)
+    print("S2 — CONTRIBUTION SYNTHESIS (0 API calls)")
+    print("-" * 60)
+
+    if not synthesized:
+        print("  No claims synthesized.")
+        return
+
+    # Overlap distribution
+    from collections import Counter
+    overlap_counts = Counter(s.overlap_count for s in synthesized)
+    type_labels = {0: "TYPE 0", 1: "TYPE 0", 2: "TYPE 2", 3: "TYPE 3"}
+
+    for n in sorted(overlap_counts.keys(), reverse=True):
+        count = overlap_counts[n]
+        from src.stages.synthesis import OVERLAP_TYPE_MAP, TYPE_LABELS
+        t = OVERLAP_TYPE_MAP.get(n, 3)
+        label = TYPE_LABELS.get(t, "?")
+        print(f"  {n}/5 overlap: {count} claims (TYPE {t} — {label})")
+
+    # Singulars highlighted
+    singulars = [s for s in synthesized if s.type == 3]
+    if singulars:
+        print(f"\n  SINGULAR — potential novel insights:")
+        for s in singulars[:5]:
+            source = s.models[0] if s.models else "?"
+            print(f"    [{source}] {s.statement[:80]}")
+
+    # Conflicts
+    if conflicts:
+        print(f"\n  Conflicts: {len(conflicts)}")
+        for c in conflicts[:3]:
+            vals = ", ".join(f"{m}: {v}" for m, v in c.values.items())
+            print(f"    {c.subject} {c.relation} {c.object}: {vals}")
+
+    # TYPE 0/1 ratio
+    t01 = sum(1 for s in synthesized if s.type in (0, 1))
+    total = len(synthesized)
+    ratio = t01 / total if total else 0
+    print(f"\n  TYPE 0/1: {ratio:.2%} ({t01}/{total} claims)")
 
 
 def display_s3_gate(s3_result: dict) -> None:
@@ -160,9 +188,10 @@ def display_s5(s5_result) -> None:
 async def run_full_pipeline(compiled: dict, args) -> dict:
     """Run the complete IRIS Gate Evo pipeline."""
     from src.stages.stages import (
-        run_s1, run_s2, run_s3_gate,
+        run_s1, run_s3_gate,
         build_recirculation_context, enrich_compiled_for_recirculation,
     )
+    from src.stages.synthesis import run_s2_synthesis
     from src.verify.verify import run_verify, apply_verdicts
     from src.gate.gate import run_gate
     from src.hypothesis.s4_hypothesis import run_s4
@@ -187,14 +216,6 @@ async def run_full_pipeline(compiled: dict, args) -> dict:
     s2_result = None
     s3_result = None
     cycle = 0
-
-    def _on_s2_round(round_num, max_rounds, snapshot, d):
-        """Dashboard callback — fires after each S2 debate round."""
-        dash.update_round(round_num, max_rounds)
-        dash.update_metrics(snapshot)
-        dash.update_delta(d)
-        dash.update_calls(total_calls + round_num * 5)  # Approximate
-        dash.render()
 
     while cycle <= MAX_RECIRCULATIONS:
         cycle_label = f"CYCLE {cycle + 1}" if cycle > 0 else ""
@@ -227,17 +248,19 @@ async def run_full_pipeline(compiled: dict, args) -> dict:
             print(f"\n[--stage s1] Stopping. {total_calls} calls used.")
             return {"s1": s1_result, "total_calls": total_calls}
 
-        # ── S2: Refinement ──
-        dash.update_stage(f"S2 — Debate{f' ({cycle_label})' if cycle_label else ''}")
-        print(f"\nStarting S2 — Anonymized Debate...{f' ({cycle_label})' if cycle_label else ''}")
-        s2_result = await run_s2(
-            current_compiled, s1_result,
-            session_seed=session_seed + cycle,
-            on_round_complete=_on_s2_round,
-        )
-        total_calls += s2_result["total_calls"]
+        # ── S2: Contribution Synthesis (0 API calls) ──
+        dash.update_stage(f"S2 — Synthesis{f' ({cycle_label})' if cycle_label else ''}")
+        print(f"\nRunning S2 — Contribution Synthesis (0 API calls)...{f' ({cycle_label})' if cycle_label else ''}")
+        s2_result = run_s2_synthesis(s1_result)
+        # total_calls unchanged — synthesis uses 0 API calls
+
+        # Update dashboard with synthesis snapshot
+        if s2_result["snapshots"]:
+            dash.update_metrics(s2_result["snapshots"][-1])
         dash.update_calls(total_calls)
-        display_s2_progress(s2_result)
+        dash.render()
+
+        display_s2_synthesis(s2_result)
 
         if stop_stage == "s2":
             dash.finalize()
@@ -268,11 +291,11 @@ async def run_full_pipeline(compiled: dict, args) -> dict:
                     recirculation_context,
                     cycle_num=cycle + 2,
                 )
-                print(f"\nRecirculating — injecting {len(recirculation_context)} chars of prior consensus")
+                print(f"\nRecirculating — injecting {len(recirculation_context)} chars of independent consensus")
                 cycle += 1
                 continue
             else:
-                print("\nNo TYPE 0/1 claims to recirculate. Routing to human review.")
+                print("\nNo claims to recirculate. Routing to human review.")
                 break
         else:
             print(f"\nMax recirculations ({MAX_RECIRCULATIONS}) reached. Routing to human review.")

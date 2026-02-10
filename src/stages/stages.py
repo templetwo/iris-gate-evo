@@ -2,11 +2,13 @@
 Stage Orchestrator — S1 → S2 → S3
 
 S1 (Formulation): PULSE fires, responses parsed into claims.
-S2 (Refinement): Anonymized debate loop with decreasing token budgets.
-    Early-stop: delta < 1% for 3 CONSECUTIVE rounds AND TYPE 0/1 >= 80%.
-    BOTH conditions must be true. A stable pile of speculation doesn't stop.
+S2 (Contribution Synthesis): Pure Python overlap analysis on claim tuples.
+    Models never see each other's outputs. The SYSTEM finds convergence
+    by counting how many independent mirrors produced matching claims.
+    TYPE assigned by overlap count: 5/5→T0, 4/5→T0, 3/5→T1, 2/5→T2, 1/5→T3.
+    Zero API calls.
 S3 (Stable Attractor): Strictest convergence gate.
-    Jaccard > 0.85, TYPE 0/1 >= 90%, compression stable.
+    Cosine > 0.85, TYPE 0/1 >= domain-adaptive threshold, Jaccard floor 0.10.
     FAIL routes to human review with the divergence map.
 """
 
@@ -17,18 +19,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
-from src.models import TOKEN_BUDGETS
 from src.parser import parse_response, ParsedResponse
 from src.convergence.convergence import compute, delta, ConvergenceSnapshot
-from src.stages.anonymizer import anonymize_round, build_debate_prompt
+from src.stages.synthesis import run_s2_synthesis
 from src.pulse.pulse import fire
-
-
-# S2 config
-S2_MAX_ROUNDS = 10
-S2_EARLY_STOP_DELTA = 0.01        # 1% change threshold
-S2_EARLY_STOP_CONSECUTIVE = 3      # Must be stable for 3 consecutive rounds
-S2_EARLY_STOP_TYPE01_THRESHOLD = 0.80  # AND >= 80% TYPE 0/1
 
 
 # S3 gate thresholds
@@ -67,144 +61,16 @@ async def run_s1(compiled: dict) -> dict:
     }
 
 
-async def run_s2(
-    compiled: dict,
-    s1_result: dict,
-    session_seed: Optional[int] = None,
-    on_round_complete: Optional[callable] = None,
-) -> dict:
-    """S2 — Refinement Loop. Anonymized cross-model debate.
-
-    Token budgets decrease from S2_start (800) to S2_end (700).
-    Early-stop: delta < 1% for 3 consecutive rounds AND TYPE 0/1 >= 80%.
-
-    Returns:
-        Dict with final parsed responses, convergence history, and metadata.
-    """
-    parsed = s1_result["parsed"]
-    snapshots = [s1_result["snapshot"]]
-    total_calls = 0
-    round_logs = []
-
-    # Compute token budget slope
-    budget_start = TOKEN_BUDGETS["S2_start"]
-    budget_end = TOKEN_BUDGETS["S2_end"]
-
-    consecutive_stable = 0
-
-    for round_num in range(1, S2_MAX_ROUNDS + 1):
-        # Interpolate token budget (decreasing)
-        progress = round_num / S2_MAX_ROUNDS
-        token_budget = int(budget_start - (budget_start - budget_end) * progress)
-
-        # Anonymize — RANDOM assignment every round
-        anonymized, mapping = anonymize_round(
-            parsed, round_num=round_num, seed=session_seed
-        )
-
-        # Build debate prompt
-        debate_prompt = build_debate_prompt(
-            question=compiled["question"],
-            anonymized=anonymized,
-            round_num=round_num,
-            token_budget=token_budget,
-        )
-
-        # Create a modified compiled dict for this round
-        round_compiled = {
-            **compiled,
-            "prompt": debate_prompt,
-            "token_budgets": {**compiled["token_budgets"], "S1": token_budget},
-        }
-
-        # Update model max_tokens for this round
-        for name in round_compiled["models"]:
-            round_compiled["models"][name] = {
-                **round_compiled["models"][name],
-                "max_tokens": token_budget + 400,
-            }
-
-        # Fire PULSE for this round
-        pulse_result = await fire(round_compiled)
-        total_calls += pulse_result["meta"]["models_dispatched"]
-
-        # Parse responses
-        new_parsed = []
-        for resp in pulse_result["responses"]:
-            if resp["status"] == "ok":
-                p = parse_response(resp["content"], model=resp["model"])
-                new_parsed.append(p)
-
-        # If we got responses, update parsed
-        if new_parsed:
-            parsed = new_parsed
-
-        # Compute convergence
-        claims_per_model = [p.claims for p in parsed]
-        snapshot = compute(claims_per_model, round_num=round_num)
-        snapshots.append(snapshot)
-
-        # Compute delta from previous round
-        d = delta(snapshot, snapshots[-2]) if len(snapshots) >= 2 else 1.0
-
-        # Log this round
-        round_log = {
-            "round": round_num,
-            "token_budget": token_budget,
-            "delta": round(d, 4),
-            "jaccard": round(snapshot.jaccard, 4),
-            "cosine": round(snapshot.cosine, 4),
-            "jsd": round(snapshot.jsd, 4),
-            "type_01_ratio": round(snapshot.type_01_ratio, 4),
-            "n_claims": snapshot.n_claims_per_model,
-            "mapping": mapping,  # Audit trail only
-        }
-        round_logs.append(round_log)
-
-        # Dashboard callback — fire after each round
-        if on_round_complete:
-            on_round_complete(round_num, S2_MAX_ROUNDS, snapshot, d)
-
-        # --- Early-stop check: BOTH conditions must be true ---
-        delta_stable = d < S2_EARLY_STOP_DELTA
-        type_stable = snapshot.type_01_ratio >= S2_EARLY_STOP_TYPE01_THRESHOLD
-
-        if delta_stable and type_stable:
-            consecutive_stable += 1
-        else:
-            consecutive_stable = 0  # Reset — must be CONSECUTIVE
-
-        if consecutive_stable >= S2_EARLY_STOP_CONSECUTIVE:
-            round_log["early_stop"] = True
-            round_log["early_stop_reason"] = (
-                f"delta < {S2_EARLY_STOP_DELTA} for {S2_EARLY_STOP_CONSECUTIVE} "
-                f"consecutive rounds AND TYPE 0/1 >= {S2_EARLY_STOP_TYPE01_THRESHOLD}"
-            )
-            break
-
-    return {
-        "stage": "S2",
-        "parsed": parsed,
-        "snapshots": snapshots,
-        "rounds": round_logs,
-        "total_rounds": len(round_logs),
-        "total_calls": total_calls,
-        "early_stopped": consecutive_stable >= S2_EARLY_STOP_CONSECUTIVE,
-    }
-
-
 def run_s3_gate(s2_result: dict, compiled: dict = None) -> dict:
     """S3 — Stable Attractor Gate. Strictest convergence check.
 
     PASS requires:
-    - Convergence score > 0.85 (composite: 0.3*jaccard + 0.7*cosine)
-    - TYPE 0/1 >= 90%
+    - Cosine > 0.85 (semantic similarity) with Jaccard floor 0.10
+    - TYPE 0/1 >= domain-adaptive threshold
 
     Cosine similarity on claim embeddings captures semantic convergence
     that tuple-based Jaccard misses when models express the same science
-    in structurally different ways. The composite score weighs the more
-    reliable instrument (cosine) more heavily while keeping Jaccard as
-    a lexical grounding check.
+    in structurally different ways.
 
     FAIL routes to human review with the full divergence map.
     No retry. Failure is data.
@@ -317,8 +183,8 @@ async def run_pipeline(
     # S1
     s1_result = await run_s1(compiled)
 
-    # S2
-    s2_result = await run_s2(compiled, s1_result, session_seed=session_seed)
+    # S2 — Contribution Synthesis (0 API calls)
+    s2_result = run_s2_synthesis(s1_result)
 
     # S3
     s3_result = run_s3_gate(s2_result, compiled=compiled)
@@ -362,19 +228,89 @@ def _extract_final_claims(parsed: list[ParsedResponse]) -> list[dict]:
 
 
 def build_recirculation_context(s2_result: dict, s3_result: dict) -> str:
-    """Build a prior-consensus block from converged claims for recirculation.
+    """Build a recirculation block from synthesized claims for the next cycle.
 
-    Extracts TYPE 0/1 claims (established/replicated) from the failed cycle
-    and formats them as accumulated knowledge for the next S1 prompt.
-    Deduplication uses claim tuple extraction — two claims expressing the
-    same science in different words will produce overlapping tuples and dedup.
+    Uses synthesized_claims from S2 synthesis when available (new path),
+    falls back to parsing s2_result["parsed"] claims (legacy path).
+
+    Converged claims (TYPE 0/1) become established priors.
+    Singular claims (TYPE 3) become investigation threads.
     """
+    from src.convergence.claim_tuples import extract_tuples, group_relation
+    from src.parser import Claim
+
+    # New path: use synthesized_claims from synthesis stage
+    synthesized = s2_result.get("synthesized_claims")
+    if synthesized:
+        return _build_recirculation_from_synthesis(synthesized, s3_result)
+
+    # Legacy path: extract from parsed responses
+    return _build_recirculation_from_parsed(s2_result, s3_result)
+
+
+def _build_recirculation_from_synthesis(synthesized, s3_result: dict) -> str:
+    """Build recirculation context from SynthesizedClaim objects."""
+    converged = [s for s in synthesized if s.type in (0, 1)]
+    singulars = [s for s in synthesized if s.type == 3]
+
+    if not converged and not singulars:
+        return ""
+
+    lines = [
+        "═══════════════════════════════════════════════════════",
+        "INDEPENDENT CONSENSUS — FROM PREVIOUS CYCLE",
+        "═══════════════════════════════════════════════════════",
+        "",
+        "The following claims showed independent convergence across multiple",
+        "mirrors in the previous cycle. No mirror saw another's output —",
+        "this convergence emerged independently. Go deeper on these threads:",
+        "explore mechanisms, quantitative predictions, and falsification conditions.",
+        "",
+    ]
+
+    # Converged claims (TYPE 0/1)
+    for i, sc in enumerate(converged[:12], 1):
+        label = "ESTABLISHED" if sc.type == 0 else "REPLICATED"
+        lines.append(f"  [{label}] {sc.statement}")
+        if sc.mechanism:
+            lines.append(f"    MECHANISM: {sc.mechanism}")
+        lines.append(f"    OVERLAP: {sc.overlap_count}/5 mirrors | CONFIDENCE: {sc.confidence}")
+        lines.append("")
+
+    # Singular claims (TYPE 3) — potential novel insights
+    if singulars:
+        lines.append("")
+        lines.append("SINGULAR THREADS (1 mirror only — potential novel insights):")
+        for sc in singulars[:6]:  # Cap at 6
+            lines.append(f"  [SINGULAR] {sc.statement}")
+            source = sc.models[0] if sc.models else "unknown"
+            lines.append(f"    SOURCE: {source} | CONFIDENCE: {sc.confidence}")
+        lines.append("")
+        lines.append(
+            "One mirror saw these — investigate whether they're real. "
+            "If you find supporting evidence, include them."
+        )
+
+    lines.append("")
+    type_01_ratio = s3_result.get("type_01_ratio", 0)
+    lines.append(
+        f"NOTE: Previous cycle achieved {type_01_ratio:.0%} TYPE 0/1 overlap. "
+        f"Explore mechanisms and quantitative predictions for converged claims. "
+        f"Investigate singular threads for potential novel discoveries."
+    )
+    lines.append("═══════════════════════════════════════════════════════")
+
+    return "\n".join(lines)
+
+
+def _build_recirculation_from_parsed(s2_result: dict, s3_result: dict) -> str:
+    """Legacy path: build recirculation from parsed claims with tuple-based dedup."""
     from src.convergence.claim_tuples import extract_tuples, group_relation
     from src.parser import Claim
 
     parsed = s2_result["parsed"]
 
-    # Collect TYPE 0/1 claims — these are what the mirrors DID agree on
+    # Collect TYPE 0/1 claims
     converged_claims = []
     for p in parsed:
         for c in p.claims:
@@ -386,8 +322,7 @@ def build_recirculation_context(s2_result: dict, s3_result: dict) -> str:
                     "mechanism": c.mechanism,
                 })
 
-    # Deduplicate using claim tuples — claims with overlapping tuple sets
-    # are expressing the same science and should merge (keep highest confidence)
+    # Deduplicate using claim tuples
     seen_tuples: set = set()
     unique_claims = []
     for claim in converged_claims:
@@ -398,14 +333,11 @@ def build_recirculation_context(s2_result: dict, s3_result: dict) -> str:
             mechanism=claim["mechanism"],
         )
         tuples = extract_tuples(claim_obj)
-        # Project to grouped triples (value-free) for comparison
         grouped = frozenset(
             (t.subject, group_relation(t.relation), t.object) for t in tuples
         )
 
         if grouped and grouped & seen_tuples:
-            # Overlapping tuples — this is a duplicate. Skip it, but update
-            # confidence of the existing claim if this one is higher.
             for existing in unique_claims:
                 existing_obj = Claim(
                     statement=existing["statement"],
@@ -428,20 +360,17 @@ def build_recirculation_context(s2_result: dict, s3_result: dict) -> str:
     if not unique_claims:
         return ""
 
-    # Format as prior consensus block
     lines = [
         "═══════════════════════════════════════════════════════",
-        "PRIOR CONSENSUS — ACCUMULATED FROM PREVIOUS CYCLE",
+        "INDEPENDENT CONSENSUS — FROM PREVIOUS CYCLE",
         "═══════════════════════════════════════════════════════",
         "",
-        "The following claims reached TYPE 0/1 consensus across five",
-        "independent mirrors in a previous debate cycle. Treat them as",
-        "ESTABLISHED PRIORS — do not re-derive from scratch. Build on them.",
-        "Challenge them ONLY if you have strong counter-evidence.",
+        "The following claims showed independent convergence across multiple",
+        "mirrors in the previous cycle. Go deeper on these threads.",
         "",
     ]
 
-    for i, claim in enumerate(unique_claims[:12], 1):  # Cap at 12 to save tokens
+    for i, claim in enumerate(unique_claims[:12], 1):
         type_label = "ESTABLISHED" if claim["type"] == 0 else "REPLICATED"
         lines.append(f"  [{type_label}] {claim['statement']}")
         if claim["mechanism"]:
@@ -449,14 +378,10 @@ def build_recirculation_context(s2_result: dict, s3_result: dict) -> str:
         lines.append(f"    CONFIDENCE: {claim['confidence']}")
         lines.append("")
 
-    # Add the TYPE distribution failure reason so models know what to fix
-    type_dist = s3_result.get("type_distribution", {})
     type_01_ratio = s3_result.get("type_01_ratio", 0)
     lines.append(
-        f"NOTE: Previous cycle achieved {type_01_ratio:.0%} TYPE 0/1 claims "
-        f"(need 90%). Too many speculative (TYPE 2/3) claims remained. "
-        f"This cycle: convert speculative claims to established ones with "
-        f"evidence, or explicitly REJECT claims you cannot support."
+        f"NOTE: Previous cycle achieved {type_01_ratio:.0%} TYPE 0/1 overlap. "
+        f"Explore mechanisms and quantitative predictions for converged claims."
     )
     lines.append("═══════════════════════════════════════════════════════")
 

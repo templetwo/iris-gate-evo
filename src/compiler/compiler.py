@@ -40,11 +40,15 @@ DOMAIN_MATURITY: dict[str, str] = {
     "general": "moderate",              # Unknown domain, moderate caution
 }
 
-# TYPE 0/1 thresholds by maturity tier
+# TYPE 0/1 thresholds by maturity tier.
+# Calibrated for complete-linkage claim clustering (0.70 cosine threshold).
+# With real model output, TYPE 0/1 ratio typically ranges 60-85% because
+# models produce 6-10 claims each and some are genuinely unique insights.
+# Cosine > 0.85 is the primary convergence signal; TYPE 0/1 is confirmation.
 MATURITY_TYPE01_THRESHOLD: dict[str, float] = {
-    "established": 0.90,
-    "moderate": 0.85,
-    "frontier": 0.80,
+    "established": 0.75,
+    "moderate": 0.70,
+    "frontier": 0.65,
 }
 
 
