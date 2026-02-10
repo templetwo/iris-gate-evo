@@ -2,18 +2,22 @@
 """
 IRIS Gate Evo — Main Entry Point
 
-Question in. Five mirrors respond. Truth under pressure.
+Question in. Five mirrors converge. Protocol package out.
 
 Usage:
     python main.py "Your research question here"
-    python main.py --domain pharmacology "Your question"
-    python main.py  # Uses the default test question
+    python main.py --compile-only "Your question"
+    python main.py --stage s1 "Your question"       # Stop after S1
+    python main.py --stage s3 "Your question"       # Stop after S3 gate
+    python main.py --offline "Your question"         # No API calls (offline mode)
+    python main.py                                   # Default CBD test question
 """
 
 import argparse
+import asyncio
 import json
 import sys
-import os
+import time
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -23,6 +27,7 @@ load_dotenv()
 
 from src.compiler import compile
 from src.pulse import fire_sync
+from src.models import TOKEN_BUDGETS
 
 
 # The test question from the spec — validates the full pipeline
@@ -54,63 +59,240 @@ def display_compiled(compiled: dict) -> None:
     print("=" * 60)
 
 
-def display_pulse_results(pulse_result: dict) -> None:
-    """Display PULSE results — all five mirror responses."""
-    meta = pulse_result["meta"]
+def display_convergence(snapshot: dict, label: str = "S1") -> None:
+    """Display convergence metrics."""
+    print(f"\n  [{label}] Jaccard: {snapshot.get('jaccard', 0):.4f} | "
+          f"Cosine: {snapshot.get('cosine', 0):.4f} | "
+          f"JSD: {snapshot.get('jsd', 0):.4f} | "
+          f"TYPE 0/1: {snapshot.get('type_01_ratio', 0):.2%}")
 
-    print("\n" + "=" * 60)
-    print("PULSE — FIVE MIRRORS RESPOND")
+
+def display_s2_progress(s2_result: dict) -> None:
+    """Display S2 debate round progress."""
+    print("\n" + "-" * 60)
+    print("S2 — REFINEMENT LOOP")
+    print("-" * 60)
+    for r in s2_result.get("rounds", []):
+        marker = " *STOP*" if r.get("early_stop") else ""
+        print(f"  Round {r['round']:2d} | J={r['jaccard']:.3f} cos={r['cosine']:.3f} "
+              f"JSD={r['jsd']:.3f} T01={r['type_01_ratio']:.2f} "
+              f"delta={r['delta']:.4f}{marker}")
+
+    if s2_result.get("early_stopped"):
+        print(f"\n  Early-stopped at round {s2_result['total_rounds']} "
+              f"({s2_result['total_calls']} calls)")
+    else:
+        print(f"\n  Completed {s2_result['total_rounds']} rounds "
+              f"({s2_result['total_calls']} calls)")
+
+
+def display_s3_gate(s3_result: dict) -> None:
+    """Display S3 gate decision."""
+    passed = s3_result.get("passed", False)
+    status = "PASSED" if passed else "FAILED"
+    print(f"\n{'=' * 60}")
+    print(f"S3 GATE: {status}")
+    print(f"  Jaccard: {s3_result.get('jaccard', 0):.4f} "
+          f"(threshold: {s3_result.get('jaccard_threshold', 0.85)})")
+    print(f"  TYPE 0/1: {s3_result.get('type_01_ratio', 0):.2%} "
+          f"(threshold: {s3_result.get('type_01_threshold', 0.90):.0%})")
+    if not passed:
+        print(f"\n  {s3_result.get('recommendation', '')}")
     print("=" * 60)
-    print(f"Dispatched: {meta['models_dispatched']} | "
-          f"OK: {meta['models_ok']} | "
-          f"Failed: {meta['models_failed']}")
-    print(f"Total latency: {meta['total_latency_s']}s "
-          f"(fastest: {meta['fastest_model']}, "
-          f"slowest: {meta['slowest_model']})")
-    print(f"Tokens: {meta['total_prompt_tokens']} prompt + "
-          f"{meta['total_completion_tokens']} completion")
-    print("=" * 60)
-
-    for resp in pulse_result["responses"]:
-        print(f"\n{'─' * 60}")
-        print(f"MIRROR: {resp['model']} ({resp['model_id']})")
-        print(f"Status: {resp['status']} | "
-              f"Latency: {resp['latency_s']}s | "
-              f"Tokens: {resp['tokens_completion']}")
-        print(f"{'─' * 60}")
-
-        if resp["status"] == "ok":
-            print(resp["content"])
-        else:
-            print(f"ERROR: {resp['error']}")
-
-        print()
 
 
-def save_session(compiled: dict, pulse_result: dict, output_dir: Path) -> Path:
-    """Save the full session to runs/ for audit trail."""
-    session_dir = output_dir / compiled["session_id"]
-    session_dir.mkdir(parents=True, exist_ok=True)
+def display_verify(verify_summary: dict) -> None:
+    """Display VERIFY stage results."""
+    print(f"\n{'─' * 60}")
+    print("VERIFY — TYPE 2 CLAIM CHECKING")
+    print(f"{'─' * 60}")
+    print(f"  Claims checked:  {verify_summary.get('n_type2_input', 0)}")
+    print(f"  PROMOTED → T1:   {verify_summary.get('n_promoted', 0)}")
+    print(f"  HELD (T2):       {verify_summary.get('n_held', 0)}")
+    print(f"  NOVEL:           {verify_summary.get('n_novel', 0)}")
+    print(f"  CONTRADICTED:    {verify_summary.get('n_contradicted', 0)}")
 
-    # Save compiled output
-    with open(session_dir / "compiled.json", "w") as f:
-        json.dump(compiled, f, indent=2)
 
-    # Save pulse results
-    with open(session_dir / "pulse_s1.json", "w") as f:
-        json.dump(pulse_result, f, indent=2, default=str)
+def display_gate(gate_result) -> None:
+    """Display Lab Gate results."""
+    passed = gate_result.passed if hasattr(gate_result, 'passed') else False
+    status = "PASSED" if passed else "FAILED"
+    print(f"\n{'─' * 60}")
+    print(f"LAB GATE: {status}")
+    print(f"{'─' * 60}")
+    n_p = gate_result.n_passed if hasattr(gate_result, 'n_passed') else 0
+    n_f = gate_result.n_failed if hasattr(gate_result, 'n_failed') else 0
+    print(f"  Passed: {n_p} | Failed: {n_f}")
+    rec = gate_result.recommendation if hasattr(gate_result, 'recommendation') else ""
+    if rec:
+        print(f"  {rec}")
 
-    # Save individual mirror responses as readable text
-    for resp in pulse_result["responses"]:
-        if resp["status"] == "ok":
-            fname = f"s1_{resp['model']}.txt"
-            with open(session_dir / fname, "w") as f:
-                f.write(f"Model: {resp['model']} ({resp['model_id']})\n")
-                f.write(f"Latency: {resp['latency_s']}s\n")
-                f.write(f"Tokens: {resp['tokens_completion']}\n\n")
-                f.write(resp["content"])
 
-    return session_dir
+def display_s4(s4_result) -> None:
+    """Display S4 hypothesis results."""
+    print(f"\n{'─' * 60}")
+    print("S4 — HYPOTHESES OPERATIONALIZED")
+    print(f"{'─' * 60}")
+    for h in s4_result.hypotheses:
+        print(f"\n  {h.id}: {h.prediction[:100]}")
+        print(f"    Testability: {h.testability_score}/10 | Params: {len(h.parameters)}")
+
+
+def display_s5(s5_result) -> None:
+    """Display S5 Monte Carlo results."""
+    print(f"\n{'─' * 60}")
+    print("S5 — MONTE CARLO (0 LLM calls)")
+    print(f"{'─' * 60}")
+    print(f"  Total iterations: {s5_result.total_iterations}")
+    for sim in s5_result.simulations:
+        stats = sim.outcome_stats.get("effect_magnitude", {})
+        print(f"\n  {sim.hypothesis_id}: effect_size={sim.effect_size:.3f} "
+              f"power={sim.power_estimate:.3f} "
+              f"converged={sim.convergence_check}")
+        print(f"    Outcome: mean={stats.get('mean', 0):.4f} "
+              f"CI=[{stats.get('ci_lower', 0):.4f}, {stats.get('ci_upper', 0):.4f}]")
+
+
+async def run_full_pipeline(compiled: dict, args) -> dict:
+    """Run the complete IRIS Gate Evo pipeline."""
+    from src.stages.stages import run_s1, run_s2, run_s3_gate
+    from src.verify.verify import run_verify, apply_verdicts
+    from src.gate.gate import run_gate
+    from src.hypothesis.s4_hypothesis import run_s4
+    from src.monte_carlo.monte_carlo import run_s5
+    from src.protocol.protocol import generate_protocol_package, save_protocol, format_human_summary
+
+    session_seed = int(time.time()) % 2**31
+    total_calls = 0
+    stop_stage = getattr(args, 'stage', 'full')
+    offline = getattr(args, 'offline', False)
+
+    # ── S1: Formulation ──
+    print("\nFiring S1 — PULSE...")
+    s1_result = await run_s1(compiled)
+    total_calls += s1_result["total_calls"]
+    n_ok = len(s1_result["parsed"])
+    print(f"  {n_ok} mirrors responded")
+    display_convergence(s1_result["snapshot"].__dict__ if hasattr(s1_result["snapshot"], '__dict__') else s1_result["snapshot"], "S1")
+
+    if stop_stage == "s1":
+        print(f"\n[--stage s1] Stopping. {total_calls} calls used.")
+        return {"s1": s1_result, "total_calls": total_calls}
+
+    # ── S2: Refinement ──
+    print("\nStarting S2 — Anonymized Debate...")
+    s2_result = await run_s2(compiled, s1_result, session_seed=session_seed)
+    total_calls += s2_result["total_calls"]
+    display_s2_progress(s2_result)
+
+    if stop_stage == "s2":
+        print(f"\n[--stage s2] Stopping. {total_calls} calls used.")
+        return {"s1": s1_result, "s2": s2_result, "total_calls": total_calls}
+
+    # ── S3: Convergence Gate ──
+    s3_result = run_s3_gate(s2_result)
+    display_s3_gate(s3_result)
+
+    if stop_stage == "s3" or not s3_result["passed"]:
+        if not s3_result["passed"]:
+            print("\nS3 gate failed. Routing to human review.")
+        print(f"\n{total_calls} calls used.")
+        return {"s1": s1_result, "s2": s2_result, "s3": s3_result, "total_calls": total_calls}
+
+    # Build pipeline result for downstream stages
+    from dataclasses import asdict
+    pipeline_result = {
+        "session_id": compiled["session_id"],
+        "question": compiled["question"],
+        "s1": {
+            "n_models_responded": len(s1_result["parsed"]),
+            "snapshot": asdict(s1_result["snapshot"]),
+            "calls": s1_result["total_calls"],
+        },
+        "s2": {
+            "total_rounds": s2_result["total_rounds"],
+            "early_stopped": s2_result["early_stopped"],
+            "rounds": s2_result["rounds"],
+            "calls": s2_result["total_calls"],
+        },
+        "s3": s3_result,
+        "final_claims": _extract_final_claims(s2_result["parsed"]),
+    }
+
+    # ── VERIFY: TYPE 2 Claim Checking ──
+    verify_summary = None
+    if not offline:
+        print("\nRunning VERIFY — checking TYPE 2 claims...")
+        verify_result = await run_verify(pipeline_result)
+        total_calls += verify_result.total_calls
+        pipeline_result = apply_verdicts(pipeline_result, verify_result)
+        verify_summary = pipeline_result.get("verify_summary")
+        if verify_summary:
+            display_verify(verify_summary)
+    else:
+        print("\n[offline] Skipping VERIFY stage.")
+
+    # ── LAB GATE: Falsifiability, Feasibility, Novelty ──
+    print("\nRunning Lab Gate...")
+    gate_result = await run_gate(pipeline_result, use_offline=offline)
+    total_calls += gate_result.total_calls
+    display_gate(gate_result)
+
+    if not gate_result.passed:
+        print(f"\nLab Gate failed. {total_calls} calls used. Route to human review.")
+        return {**pipeline_result, "gate": gate_result, "total_calls": total_calls}
+
+    # ── S4: Hypothesis Operationalization ──
+    print("\nRunning S4 — Operationalizing hypotheses...")
+    s4_result = await run_s4(pipeline_result, use_offline=offline)
+    total_calls += s4_result.total_calls
+    display_s4(s4_result)
+
+    # ── S5: Monte Carlo ──
+    print("\nRunning S5 — Monte Carlo simulation...")
+    s5_result = run_s5(s4_result, n_iterations=300)
+    display_s5(s5_result)
+
+    # ── S6: Protocol Package ──
+    print("\nGenerating S6 — Protocol Package...")
+    package = generate_protocol_package(
+        question=compiled["question"],
+        pipeline_result=pipeline_result,
+        verify_summary=verify_summary,
+        gate_result=gate_result,
+        s4_result=s4_result,
+        s5_result=s5_result,
+        session_seed=session_seed,
+    )
+
+    # Save
+    output_dir = Path(__file__).parent / "runs"
+    paths = save_protocol(package, output_dir=str(output_dir))
+
+    # Display summary
+    summary = format_human_summary(package)
+    print(f"\n{summary}")
+    print(f"\nSaved: {paths.get('json', '')}")
+    print(f"Summary: {paths.get('summary', '')}")
+    print(f"\nTotal LLM calls: {total_calls}")
+
+    return package
+
+
+def _extract_final_claims(parsed) -> list:
+    """Extract claims from parsed responses."""
+    claims = []
+    for p in parsed:
+        for c in p.claims:
+            claims.append({
+                "statement": c.statement,
+                "type": c.type,
+                "confidence": c.confidence,
+                "mechanism": c.mechanism,
+                "falsifiable_by": c.falsifiable_by,
+                "model": p.model,
+            })
+    return claims
 
 
 def main():
@@ -126,7 +308,7 @@ def main():
     parser.add_argument(
         "--domain",
         default=None,
-        help="Force a specific domain (pharmacology, bioelectric, consciousness, physics)",
+        help="Force a specific domain (pharmacology, bioelectric, etc.)",
     )
     parser.add_argument(
         "--models",
@@ -139,6 +321,17 @@ def main():
         help="Only run the compiler, don't dispatch to models",
     )
     parser.add_argument(
+        "--stage",
+        default="full",
+        choices=["s1", "s2", "s3", "full"],
+        help="Stop after this stage (default: full pipeline)",
+    )
+    parser.add_argument(
+        "--offline",
+        action="store_true",
+        help="Run without API calls (offline heuristic mode)",
+    )
+    parser.add_argument(
         "--save",
         action="store_true",
         default=True,
@@ -147,7 +340,7 @@ def main():
 
     args = parser.parse_args()
 
-    print("\n🌀 IRIS Gate Evo")
+    print("\nIRIS Gate Evo")
     print(f"Question: {args.question[:80]}{'...' if len(args.question) > 80 else ''}")
 
     # C0 — Compile
@@ -155,35 +348,13 @@ def main():
     display_compiled(compiled)
 
     if args.compile_only:
-        print("\n[--compile-only] Stopping after C0. Prompt ready for manual inspection.")
+        print("\n[--compile-only] Stopping after C0.")
         print("\nGenerated prompt:")
         print(compiled["prompt"])
         return
 
-    # PULSE — Fire
-    models = args.models.split(",") if args.models else None
-    print("\nFiring PULSE...")
-    pulse_result = fire_sync(compiled, models=models)
-    display_pulse_results(pulse_result)
-
-    # Save session
-    if args.save:
-        output_dir = Path(__file__).parent / "runs"
-        session_dir = save_session(compiled, pulse_result, output_dir)
-        print(f"\nSession saved: {session_dir}")
-
-    # Summary
-    ok = pulse_result["meta"]["models_ok"]
-    total = pulse_result["meta"]["models_dispatched"]
-    print(f"\n{'=' * 60}")
-    print(f"S1 COMPLETE: {ok}/{total} mirrors responded")
-    if ok == total:
-        print("All mirrors active. Ready for S2 convergence.")
-    elif ok >= 3:
-        print(f"Partial response ({ok}/{total}). Can proceed with reduced confidence.")
-    else:
-        print(f"Insufficient mirrors ({ok}/{total}). Investigate failures before proceeding.")
-    print("=" * 60)
+    # Run the full async pipeline
+    asyncio.run(run_full_pipeline(compiled, args))
 
 
 if __name__ == "__main__":
