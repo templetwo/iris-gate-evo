@@ -129,6 +129,20 @@ def build_s4_prompt(question: str, claims: list[dict]) -> str:
     )
 
 
+def _strip_markdown(text: str) -> str:
+    """Strip markdown formatting that breaks section-boundary parsing.
+
+    Models often wrap labels in **bold** — e.g. **PREDICTION:** instead
+    of PREDICTION:. This breaks every regex that uses section headers as
+    boundaries. Strip it before parsing.
+    """
+    # Remove ** bold markers
+    text = text.replace("**", "")
+    # Remove * italic markers (but not bullet points at line start)
+    text = re.sub(r'(?<!\n)\*(?!\s)', '', text)
+    return text
+
+
 def parse_s4_response(response_text: str) -> list[Hypothesis]:
     """Parse S4 model response into Hypothesis objects.
 
@@ -136,6 +150,9 @@ def parse_s4_response(response_text: str) -> list[Hypothesis]:
     for Monte Carlo simulation.
     """
     hypotheses = []
+
+    # Strip markdown before parsing — models wrap labels in **bold**
+    response_text = _strip_markdown(response_text)
 
     # Split on hypothesis markers
     hyp_pattern = re.compile(
@@ -503,19 +520,25 @@ async def run_s4(
              pipeline_result.get("final_claims", []))
 
     # If gate result is provided, filter to only passed claims
-    if gate_result and gate_result.get("claims"):
+    gate_claims = None
+    if gate_result:
+        if hasattr(gate_result, 'claims'):
+            gate_claims = gate_result.claims
+        elif isinstance(gate_result, dict):
+            gate_claims = gate_result.get("claims")
+
+    if gate_claims:
         passed_statements = {
-            r.statement for r in gate_result["claims"]
+            r.statement for r in gate_claims
             if hasattr(r, 'passed') and r.passed
         }
         if passed_statements:
             claims = [c for c in claims if c.get("statement") in passed_statements]
 
-    # Filter out contradicted and TYPE 3
+    # Filter contradicted only — let the model see all claim types
     claims = [
         c for c in claims
         if not c.get("contradicted", False)
-        and c.get("type", 3) <= 2
     ]
 
     if not claims:
@@ -542,7 +565,7 @@ async def run_s4(
             "model": f"{prefix}{model['id']}",
             "messages": [{"role": "user", "content": prompt}],
             "temperature": 0.5,
-            "max_tokens": 1500,
+            "max_tokens": 3000,
         }
 
         if model["provider"] in ("xai", "deepseek"):

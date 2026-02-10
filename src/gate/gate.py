@@ -363,16 +363,17 @@ async def run_gate(
     n_passed = sum(1 for r in claim_results if r.passed)
     n_failed = len(claim_results) - n_passed
 
-    # Overall gate passes only if ALL claims pass
-    overall_pass = n_failed == 0 and n_passed > 0
+    # Gate passes if ANY claims survived — it filters, not blocks.
+    # Failed claims are removed; passed claims proceed to S4.
+    overall_pass = n_passed > 0
 
     recommendation = ""
-    if overall_pass:
+    if n_failed == 0:
         recommendation = (
-            f"Lab Gate PASSED. {n_passed} claims cleared all three criteria. "
+            f"Lab Gate PASSED. {n_passed}/{n_passed} claims cleared all three criteria. "
             f"Proceeding to S4 hypothesis operationalization."
         )
-    else:
+    elif overall_pass:
         failed_claims = [r for r in claim_results if not r.passed]
         reasons = []
         for r in failed_claims:
@@ -384,8 +385,13 @@ async def run_gate(
                 reasons.append(f"'{r.statement[:50]}...' lacks novelty")
 
         recommendation = (
-            f"Lab Gate FAILED. {n_failed}/{len(claim_results)} claims failed. "
-            f"Route to human review. Issues: {'; '.join(reasons[:5])}"
+            f"Lab Gate PASSED with filter. {n_passed}/{len(claim_results)} claims cleared. "
+            f"{n_failed} filtered: {'; '.join(reasons[:3])}"
+        )
+    else:
+        recommendation = (
+            f"Lab Gate FAILED. 0/{len(claim_results)} claims passed. "
+            f"Route to human review."
         )
 
     return GateResult(

@@ -23,6 +23,7 @@ from src.hypothesis.s4_hypothesis import (
     _parse_dose_ranges,
     _extract_variables,
     _extract_parameters_from_text,
+    _strip_markdown,
 )
 
 
@@ -339,3 +340,48 @@ class TestOfflineOperationalization:
         # At least one should have a protocol derived from falsifiable_by
         has_protocol = any(len(h.experimental_protocol) > 5 for h in hyps)
         assert has_protocol
+
+
+# ── Markdown Stripping ──
+
+class TestMarkdownStripping:
+    def test_strips_bold(self):
+        text = "**PREDICTION:** IF CBD is applied"
+        assert _strip_markdown(text) == "PREDICTION: IF CBD is applied"
+
+    def test_strips_nested_bold(self):
+        text = "**HYPOTHESIS H[1]:**\n**PREDICTION:** test"
+        result = _strip_markdown(text)
+        assert "**" not in result
+        assert "HYPOTHESIS H[1]:" in result
+
+    def test_preserves_bullet_points(self):
+        text = "* bullet item\n  * nested"
+        result = _strip_markdown(text)
+        # Bullet points should not be stripped
+        assert "bullet item" in result
+
+    def test_parse_markdown_response(self):
+        """Models often return markdown — parser should handle it."""
+        response = """\
+**HYPOTHESIS H[1]:**
+**PREDICTION:** IF CBD is applied at 11 uM, THEN VDAC1 opens in cancer cells
+**SOURCE CLAIMS:** 1, 2
+**KEY VARIABLES:** CBD, VDAC1, membrane potential
+**PARAMETERS:**
+  - CBD_dose: 1.0-20.0 uM (log-normal)
+  - VDAC1_Kd: 8.0-14.0 uM (normal)
+**TESTABILITY:** 8.0
+**PROTOCOL:** Use MCF-7 vs MCF-10A cell lines with JC-1 staining
+**EXPECTED OUTCOME:** Selective depolarization in cancer cells
+**NULL OUTCOME:** No differential effect
+**DOSE RANGES:** CBD: 1, 5, 10, 20 uM
+**READOUTS:** JC-1, Annexin V
+**CONTROLS:** Vehicle, VDAC1-KO"""
+
+        hyps = parse_s4_response(response)
+        assert len(hyps) == 1
+        assert "IF CBD" in hyps[0].prediction
+        assert len(hyps[0].parameters) >= 2
+        assert hyps[0].testability_score == 8.0
+        assert len(hyps[0].key_variables) >= 2

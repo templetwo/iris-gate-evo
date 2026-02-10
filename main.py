@@ -353,7 +353,7 @@ async def run_full_pipeline(compiled: dict, args) -> dict:
 
     # ── S4: Hypothesis Operationalization ──
     print("\nRunning S4 — Operationalizing hypotheses...")
-    s4_result = await run_s4(pipeline_result, use_offline=offline)
+    s4_result = await run_s4(pipeline_result, gate_result=gate_result, use_offline=offline)
     total_calls += s4_result.total_calls
     display_s4(s4_result)
 
