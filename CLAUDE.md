@@ -8,20 +8,20 @@ A multi-LLM convergence protocol for scientific discovery. Five independent mode
 
 ## Current State (2026-02-09)
 
-**Phase: Foundation laid. Build begins.**
+**Phase 1 COMPLETE. C0 compiles. PULSE ready to fire. 43 tests passing.**
 
-- Git initialized, directory skeleton complete
-- Model registry defined (`src/models.py`)
-- Compiler template specified (`docs/compiler-template.md`)
-- Legacy priors ported from iris-gate v0.2
-- No code written yet — architecture is the deliverable so far
+- Compiler auto-detects domains, loads/merges priors, builds TMK scaffold
+- PULSE dispatches to 5 models in parallel via LiteLLM async
+- main.py wires C0 → PULSE with CLI flags (--compile-only, --domain, --models)
+- Test question validated: 8 priors injected (pharmacology+bioelectric cross-domain)
+- Next: Phase 2 — convergence metrics and S1→S2→S3 stage orchestration
 
 ## Build Order
 
 | Phase | Files | Status |
 |-------|-------|--------|
-| **1 — Skeleton** | `compiler.py`, `pulse.py`, `models.py`, `main.py` | models.py DONE, rest PENDING |
-| **2 — Convergence** | `convergence.py`, `stages.py`, `anonymizer.py` | PENDING |
+| **1 — Skeleton** | `compiler.py`, `pulse.py`, `models.py`, `main.py` | DONE |
+| **2 — Convergence** | `convergence.py`, `stages.py`, `anonymizer.py` | NEXT |
 | **3 — Verification** | `verify.py`, `gate.py`, `s4_hypothesis.py` | PENDING |
 | **4 — Simulation** | `engines/`, `monte_carlo.py`, `protocol.py` | PENDING |
 
@@ -65,10 +65,15 @@ Do NOT use older strings from iris-gate v0.2.
 | File | Purpose |
 |------|---------|
 | `src/models.py` | Model registry + token budgets |
+| `src/compiler/compiler.py` | C0 — domain detection, prior injection, scaffold |
+| `src/pulse/pulse.py` | PULSE — async 5-model dispatch via LiteLLM |
+| `main.py` | CLI entry point: C0 → PULSE → display |
 | `docs/compiler-template.md` | C0 specification |
 | `docs/AI_COBUILDER_README.md` | Full architecture reference |
-| `priors/*.json` | Quantitative priors per domain |
+| `priors/*.json` | Quantitative priors per domain (pharma, bioelectric, consciousness) |
 | `templates/` | Output formats (plan, prereg) |
+| `tests/test_compiler.py` | 33 offline tests for C0 |
+| `tests/test_models.py` | 10 tests for model registry integrity |
 
 ## Lineage
 
