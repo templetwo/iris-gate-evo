@@ -8,21 +8,24 @@ A multi-LLM convergence protocol for scientific discovery. Five independent mode
 
 ## Current State (2026-02-09)
 
-**Phase 1 COMPLETE. C0 compiles. PULSE ready to fire. 43 tests passing.**
+**Phase 2 COMPLETE. Five mirrors debate. Convergence measured. 117 tests passing.**
 
-- Compiler auto-detects domains, loads/merges priors, builds TMK scaffold
+- C0 compiles across 11 domains with hybrid keyword+embedding detection
 - PULSE dispatches to 5 models in parallel via LiteLLM async
-- main.py wires C0 → PULSE with CLI flags (--compile-only, --domain, --models)
-- Test question validated: 8 priors injected (pharmacology+bioelectric cross-domain)
-- Next: Phase 2 — convergence metrics and S1→S2→S3 stage orchestration
+- Parser extracts structured claims (TYPE/CONFIDENCE/MECHANISM/FALSIFIABLE BY)
+- Anonymizer randomizes mirror labels every round (seed + round_num)
+- Convergence engine: Jaccard, Cosine, JSD, Kappa — computed on CLAIMS, not raw text
+- S2 debate loop with AND early-stop (delta < 1% for 3 consecutive AND TYPE 0/1 >= 80%)
+- S3 gate: Jaccard > 0.85 AND TYPE 0/1 >= 90%, failure → human review with divergence map
+- Next: Phase 3 — Perplexity verification, Lab Gate, S4 hypothesis operationalization
 
 ## Build Order
 
 | Phase | Files | Status |
 |-------|-------|--------|
 | **1 — Skeleton** | `compiler.py`, `pulse.py`, `models.py`, `main.py` | DONE |
-| **2 — Convergence** | `convergence.py`, `stages.py`, `anonymizer.py` | NEXT |
-| **3 — Verification** | `verify.py`, `gate.py`, `s4_hypothesis.py` | PENDING |
+| **2 — Convergence** | `parser.py`, `convergence.py`, `stages.py`, `anonymizer.py` | DONE |
+| **3 — Verification** | `verify.py`, `gate.py`, `s4_hypothesis.py` | NEXT |
 | **4 — Simulation** | `engines/`, `monte_carlo.py`, `protocol.py` | PENDING |
 
 ## Architecture
@@ -68,12 +71,15 @@ Do NOT use older strings from iris-gate v0.2.
 | `src/compiler/compiler.py` | C0 — domain detection, prior injection, scaffold |
 | `src/pulse/pulse.py` | PULSE — async 5-model dispatch via LiteLLM |
 | `main.py` | CLI entry point: C0 → PULSE → display |
+| `src/parser.py` | Claim parser — structured extraction from model responses |
+| `src/stages/anonymizer.py` | Per-round random mirror label assignment |
+| `src/convergence/convergence.py` | Jaccard, Cosine, JSD, Kappa on parsed claims |
+| `src/stages/stages.py` | S1→S2→S3 orchestration with AND early-stop |
 | `docs/compiler-template.md` | C0 specification |
 | `docs/AI_COBUILDER_README.md` | Full architecture reference |
-| `priors/*.json` | Quantitative priors per domain (pharma, bioelectric, consciousness) |
+| `priors/*.json` | Quantitative priors across 11 scientific domains |
 | `templates/` | Output formats (plan, prereg) |
-| `tests/test_compiler.py` | 33 offline tests for C0 |
-| `tests/test_models.py` | 10 tests for model registry integrity |
+| `tests/` | 117 tests: compiler(53), models(10), parser(13), anonymizer(12), convergence(22), S3 gate(7) |
 
 ## Lineage
 
