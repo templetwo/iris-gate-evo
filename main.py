@@ -197,6 +197,7 @@ async def run_full_pipeline(compiled: dict, args) -> dict:
     from src.hypothesis.s4_hypothesis import run_s4
     from src.monte_carlo.monte_carlo import run_s5
     from src.protocol.protocol import generate_protocol_package, save_protocol, format_human_summary
+    from dataclasses import asdict
 
     MAX_RECIRCULATIONS = 2  # Max 3 total cycles (1 initial + 2 recirculations)
 
@@ -301,15 +302,57 @@ async def run_full_pipeline(compiled: dict, args) -> dict:
             print(f"\nMax recirculations ({MAX_RECIRCULATIONS}) reached. Routing to human review.")
             break
 
-    # If S3 never passed, stop here
+    # If S3 never passed, save what we have and stop
     if not s3_result["passed"]:
         dash.finalize()
         print(f"\nS3 gate failed after {cycle + 1} cycle(s). Human review required.")
         print(f"\n{total_calls} calls used.")
+
+        # Save partial results to structured folder
+        from dataclasses import asdict
+        partial_stage_data = {}
+        if s1_result:
+            partial_stage_data["s1_formulations"] = {
+                "parsed": [
+                    {"model": p.model, "raw": p.raw, "claims": [asdict(c) for c in p.claims]}
+                    for p in s1_result.get("parsed", [])
+                ],
+                "snapshot": asdict(s1_result["snapshot"]) if hasattr(s1_result.get("snapshot"), '__dict__') else s1_result.get("snapshot"),
+                "total_calls": s1_result.get("total_calls", 0),
+            }
+        if s2_result:
+            partial_stage_data["s2_synthesis"] = {
+                "synthesized_claims": s2_result.get("synthesized_claims", []),
+                "conflicts": s2_result.get("conflicts", []),
+                "total_rounds": s2_result.get("total_rounds", 0),
+                "snapshots": [
+                    asdict(s) if hasattr(s, '__dict__') else s
+                    for s in s2_result.get("snapshots", [])
+                ],
+            }
+        if s3_result:
+            partial_stage_data["s3_convergence"] = s3_result
+
+        from datetime import datetime, timezone
+        partial_package = {
+            "protocol_version": "evo-1.0",
+            "session_id": compiled["session_id"],
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "question": compiled["question"],
+            "outcome": "S3_FAILED",
+            "cycles": cycle + 1,
+            "total_calls": total_calls,
+            "convergence_report": s3_result,
+        }
+        output_dir = Path(__file__).parent / "runs"
+        paths = save_protocol(partial_package, output_dir=str(output_dir), stage_data=partial_stage_data)
+        print(f"\nSaved to: {paths.get('dir', '')}/")
+        n_files = len([k for k in paths if k != 'dir'])
+        print(f"  {n_files} files ({', '.join(k for k in sorted(paths) if k != 'dir')})")
+
         return {"s1": s1_result, "s2": s2_result, "s3": s3_result, "total_calls": total_calls, "cycles": cycle + 1}
 
     # Build pipeline result for downstream stages
-    from dataclasses import asdict
     pipeline_result = {
         "session_id": compiled["session_id"],
         "question": compiled["question"],
@@ -374,17 +417,69 @@ async def run_full_pipeline(compiled: dict, args) -> dict:
         session_seed=session_seed,
     )
 
+    # Collect per-stage outputs for structured folder
+    stage_data = {}
+
+    # S1: formulations
+    if s1_result:
+        stage_data["s1_formulations"] = {
+            "parsed": [
+                {
+                    "model": p.model,
+                    "raw": p.raw,
+                    "claims": [asdict(c) for c in p.claims],
+                }
+                for p in s1_result.get("parsed", [])
+            ],
+            "snapshot": asdict(s1_result["snapshot"]) if hasattr(s1_result.get("snapshot"), '__dict__') else s1_result.get("snapshot"),
+            "total_calls": s1_result.get("total_calls", 0),
+        }
+
+    # S2: synthesis
+    if s2_result:
+        stage_data["s2_synthesis"] = {
+            "synthesized_claims": s2_result.get("synthesized_claims", []),
+            "conflicts": s2_result.get("conflicts", []),
+            "total_rounds": s2_result.get("total_rounds", 0),
+            "early_stopped": s2_result.get("early_stopped", False),
+            "snapshots": [
+                asdict(s) if hasattr(s, '__dict__') else s
+                for s in s2_result.get("snapshots", [])
+            ],
+        }
+
+    # S3: convergence gate
+    if s3_result:
+        stage_data["s3_convergence"] = s3_result
+
+    # VERIFY
+    if verify_summary:
+        stage_data["verify"] = verify_summary
+
+    # Lab Gate
+    if gate_result:
+        stage_data["gate"] = asdict(gate_result) if hasattr(gate_result, '__dict__') else gate_result
+
+    # S4: hypotheses
+    if s4_result:
+        stage_data["s4_hypotheses"] = asdict(s4_result) if hasattr(s4_result, '__dict__') else s4_result
+
+    # S5: Monte Carlo
+    if s5_result:
+        stage_data["s5_monte_carlo"] = asdict(s5_result) if hasattr(s5_result, '__dict__') else s5_result
+
     # Save
     output_dir = Path(__file__).parent / "runs"
-    paths = save_protocol(package, output_dir=str(output_dir))
+    paths = save_protocol(package, output_dir=str(output_dir), stage_data=stage_data)
 
     # Display summary
     dash.update_stage("S6 — COMPLETE")
     dash.finalize()
     summary = format_human_summary(package)
     print(f"\n{summary}")
-    print(f"\nSaved: {paths.get('json', '')}")
-    print(f"Summary: {paths.get('summary', '')}")
+    print(f"\nSaved to: {paths.get('dir', '')}/")
+    n_files = len([k for k in paths if k != 'dir'])
+    print(f"  {n_files} files ({', '.join(k for k in sorted(paths) if k != 'dir')})")
     print(f"\nTotal LLM calls: {total_calls}")
 
     return package

@@ -361,33 +361,52 @@ def save_protocol(
     package: dict,
     output_dir: str = "runs",
     include_summary: bool = True,
+    stage_data: Optional[dict] = None,
 ) -> dict:
-    """Save the protocol package to disk.
+    """Save the protocol package to a structured session folder.
 
     Creates:
-    - {session_id}.json — full machine-readable package
-    - {session_id}_summary.txt — human-readable summary
+    runs/{session_id}/
+    ├── full_package.json         — complete machine-readable package
+    ├── summary.txt               — human-readable summary
+    ├── s1_formulations.json      — S1 parsed responses + convergence snapshot
+    ├── s2_synthesis.json         — S2 clustered claims + TYPE assignments
+    ├── s3_convergence.json       — S3 gate result + metrics
+    ├── verify.json               — Perplexity TYPE 2 verification
+    ├── gate.json                 — Lab Gate per-claim evaluations
+    ├── s4_hypotheses.json        — operationalized hypotheses + parameters
+    ├── s5_monte_carlo.json       — Monte Carlo effect sizes + power
+    └── s6_protocol.json          — final protocol package (same as full_package)
 
     Returns dict with file paths.
     """
-    output_path = Path(output_dir)
-    output_path.mkdir(parents=True, exist_ok=True)
-
     session_id = package.get("session_id", "evo_unknown")
+    session_dir = Path(output_dir) / session_id
+    session_dir.mkdir(parents=True, exist_ok=True)
 
-    # Save JSON
-    json_path = output_path / f"{session_id}.json"
+    # Save full package
+    json_path = session_dir / "full_package.json"
     with open(json_path, "w") as f:
         json.dump(package, f, indent=2, default=str)
 
-    paths = {"json": str(json_path)}
+    paths = {"json": str(json_path), "dir": str(session_dir)}
 
     # Save human-readable summary
     if include_summary:
         summary = format_human_summary(package)
-        txt_path = output_path / f"{session_id}_summary.txt"
+        txt_path = session_dir / "summary.txt"
         with open(txt_path, "w") as f:
             f.write(summary)
         paths["summary"] = str(txt_path)
+
+    # Save per-stage outputs
+    if stage_data:
+        for stage_name, data in stage_data.items():
+            if data is None:
+                continue
+            stage_path = session_dir / f"{stage_name}.json"
+            with open(stage_path, "w") as f:
+                json.dump(data, f, indent=2, default=str)
+            paths[stage_name] = str(stage_path)
 
     return paths
