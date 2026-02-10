@@ -28,6 +28,7 @@ load_dotenv()
 from src.compiler import compile
 from src.pulse import fire_sync
 from src.models import TOKEN_BUDGETS
+from src.preflight import run_preflight, format_preflight
 
 
 # The test question from the spec — validates the full pipeline
@@ -92,8 +93,10 @@ def display_s3_gate(s3_result: dict) -> None:
     status = "PASSED" if passed else "FAILED"
     print(f"\n{'=' * 60}")
     print(f"S3 GATE: {status}")
-    print(f"  Jaccard: {s3_result.get('jaccard', 0):.4f} "
-          f"(threshold: {s3_result.get('jaccard_threshold', 0.85)})")
+    print(f"  Cosine (semantic): {s3_result.get('convergence_score', 0):.4f} "
+          f"(threshold: {s3_result.get('convergence_threshold', 0.85)})")
+    print(f"  Jaccard (lexical): {s3_result.get('jaccard', 0):.4f} "
+          f"(floor: 0.10)")
     print(f"  TYPE 0/1: {s3_result.get('type_01_ratio', 0):.2%} "
           f"(threshold: {s3_result.get('type_01_threshold', 0.90):.0%})")
     if not passed:
@@ -337,6 +340,11 @@ def main():
         default=True,
         help="Save session to runs/ (default: True)",
     )
+    parser.add_argument(
+        "--skip-preflight",
+        action="store_true",
+        help="Skip API key preflight check",
+    )
 
     args = parser.parse_args()
 
@@ -352,6 +360,24 @@ def main():
         print("\nGenerated prompt:")
         print(compiled["prompt"])
         return
+
+    # Pre-flight — test all API keys before burning budget
+    if not args.offline and not args.skip_preflight:
+        model_list = args.models.split(",") if args.models else None
+        include_verify = (args.stage == "full")
+        print()
+        preflight = asyncio.run(run_preflight(
+            models=model_list,
+            include_verify=include_verify,
+        ))
+        print(format_preflight(preflight))
+
+        if not preflight.all_passed:
+            print("\nAborting — fix the failed keys and retry.")
+            print("Use --skip-preflight to bypass this check.")
+            sys.exit(1)
+
+        print()
 
     # Run the full async pipeline
     asyncio.run(run_full_pipeline(compiled, args))

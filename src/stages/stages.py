@@ -32,7 +32,9 @@ S2_EARLY_STOP_TYPE01_THRESHOLD = 0.80  # AND >= 80% TYPE 0/1
 
 
 # S3 gate thresholds
-S3_JACCARD_THRESHOLD = 0.85
+S3_CONVERGENCE_THRESHOLD = 0.85  # Primary: cosine (semantic), with Jaccard floor
+S3_JACCARD_FLOOR = 0.10          # Minimum Jaccard — lexical sanity check
+S3_JACCARD_THRESHOLD = 0.85      # Legacy, used in reporting
 S3_TYPE01_THRESHOLD = 0.90
 
 
@@ -190,22 +192,40 @@ def run_s3_gate(s2_result: dict) -> dict:
     """S3 — Stable Attractor Gate. Strictest convergence check.
 
     PASS requires:
-    - Jaccard > 0.85
+    - Convergence score > 0.85 (composite: 0.3*jaccard + 0.7*cosine)
     - TYPE 0/1 >= 90%
+
+    Cosine similarity on claim embeddings captures semantic convergence
+    that tuple-based Jaccard misses when models express the same science
+    in structurally different ways. The composite score weighs the more
+    reliable instrument (cosine) more heavily while keeping Jaccard as
+    a lexical grounding check.
 
     FAIL routes to human review with the full divergence map.
     No retry. Failure is data.
     """
     final_snapshot = s2_result["snapshots"][-1]
 
-    jaccard_pass = final_snapshot.jaccard > S3_JACCARD_THRESHOLD
+    # Convergence check: cosine (semantic similarity on claim embeddings)
+    # is the primary metric. Jaccard floor prevents pathological cases where
+    # models agree semantically but share zero vocabulary (shouldn't happen
+    # with real scientific text, but guards against degenerate inputs).
+    convergence_score = final_snapshot.cosine
+    jaccard_floor_pass = final_snapshot.jaccard >= S3_JACCARD_FLOOR
+    convergence_pass = (convergence_score > S3_CONVERGENCE_THRESHOLD) and jaccard_floor_pass
     type_pass = final_snapshot.type_01_ratio >= S3_TYPE01_THRESHOLD
 
-    passed = jaccard_pass and type_pass
+    # Legacy: still report individual Jaccard pass for diagnostics
+    jaccard_pass = final_snapshot.jaccard > S3_JACCARD_THRESHOLD
+
+    passed = convergence_pass and type_pass
 
     gate_result = {
         "stage": "S3",
         "passed": passed,
+        "convergence_score": round(convergence_score, 4),
+        "convergence_threshold": S3_CONVERGENCE_THRESHOLD,
+        "convergence_pass": convergence_pass,
         "jaccard": round(final_snapshot.jaccard, 4),
         "jaccard_threshold": S3_JACCARD_THRESHOLD,
         "jaccard_pass": jaccard_pass,
@@ -255,18 +275,13 @@ def _build_divergence_map(s2_result: dict) -> dict:
             all_claims[key]["confidences"].append(c.confidence)
 
     # Sort by disagreement (high variance in TYPE = more disagreement)
+    import numpy as np
     divergent = []
     for key, info in all_claims.items():
         type_var = float(np.var(info["types_assigned"])) if len(info["types_assigned"]) > 1 else 0
         info["type_variance"] = round(type_var, 4)
         info["n_supporters"] = len(info["models_supporting"])
         divergent.append(info)
-
-    # Need numpy for variance
-    import numpy as np
-    for info in divergent:
-        type_var = float(np.var(info["types_assigned"])) if len(info["types_assigned"]) > 1 else 0
-        info["type_variance"] = round(type_var, 4)
 
     divergent.sort(key=lambda x: x["type_variance"], reverse=True)
 

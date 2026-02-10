@@ -15,10 +15,10 @@ MODELS = {
         "temperature": 0.7,
         "max_tokens": 1200,
     },
-    "gpt": {
-        "id": "gpt-5.2",
-        "provider": "openai",
-        "base_url": "https://api.openai.com/v1",
+    "mistral": {
+        "id": "mistral-large-latest",
+        "provider": "mistral",
+        "base_url": "https://api.mistral.ai/v1",
         "temperature": 0.7,
         "max_tokens": 1200,
     },
@@ -46,7 +46,7 @@ MODELS = {
 }
 
 VERIFY_MODEL = {
-    "id": "perplexity",
+    "id": "sonar-pro",
     "provider": "perplexity",
 }
 

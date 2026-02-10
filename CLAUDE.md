@@ -73,7 +73,7 @@ python main.py                                        # Default CBD test questio
 
 ```python
 claude:   claude-opus-4-6
-gpt:      gpt-5.2
+mistral:  mistral-large-latest
 grok:     grok-4-1-fast-reasoning
 gemini:   gemini-2.5-pro
 deepseek: deepseek-chat

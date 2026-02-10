@@ -21,9 +21,11 @@ from src.models import MODELS
 PROVIDER_PREFIX = {
     "anthropic": "anthropic/",
     "openai": "openai/",
-    "xai": "openai/",       # xAI uses OpenAI-compatible API
-    "google": "gemini/",    # LiteLLM routes gemini/ to Google
-    "deepseek": "openai/",  # DeepSeek uses OpenAI-compatible API
+    "mistral": "mistral/",      # Mistral via LiteLLM native
+    "xai": "openai/",           # xAI uses OpenAI-compatible API
+    "google": "gemini/",        # LiteLLM routes gemini/ to Google
+    "deepseek": "openai/",      # DeepSeek uses OpenAI-compatible API
+    "perplexity": "perplexity/", # Perplexity via LiteLLM native
 }
 
 
@@ -42,16 +44,29 @@ async def _call_model(
     model_id = f"{prefix}{model['id']}"
 
     # Build kwargs for LiteLLM
+    base_max_tokens = min(model_config["max_tokens"], token_budget + 400)
+
+    # Gemini 2.5 Pro is a "thinking" model — its internal reasoning tokens
+    # count against max_tokens. Without headroom, thinking exhausts the budget
+    # and content comes back None. Give it 4x headroom.
+    if model["provider"] == "google" and "2.5" in model["id"]:
+        base_max_tokens = max(base_max_tokens * 4, 8192)
+
     kwargs = {
         "model": model_id,
         "messages": [{"role": "user", "content": prompt}],
         "temperature": model_config["temperature"],
-        "max_tokens": min(model_config["max_tokens"], token_budget + 400),
+        "max_tokens": base_max_tokens,
     }
 
-    # Set base URL for non-standard providers
+    # Providers using openai/ prefix need their own key + base URL
     if model["provider"] in ("xai", "deepseek"):
+        import os
+        from src.preflight import PROVIDER_ENV_KEYS
         kwargs["api_base"] = model["base_url"]
+        env_var = PROVIDER_ENV_KEYS.get(model["provider"], "")
+        if env_var:
+            kwargs["api_key"] = os.environ.get(env_var, "")
 
     t_start = time.monotonic()
 

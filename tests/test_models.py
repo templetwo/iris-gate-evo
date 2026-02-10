@@ -13,7 +13,7 @@ class TestModelRegistry:
         assert len(MODELS) == 5
 
     def test_expected_names(self):
-        expected = {"claude", "gpt", "grok", "gemini", "deepseek"}
+        expected = {"claude", "mistral", "grok", "gemini", "deepseek"}
         assert set(MODELS.keys()) == expected
 
     def test_all_have_required_fields(self):
@@ -25,7 +25,7 @@ class TestModelRegistry:
     def test_model_ids_are_current(self):
         """These are the exact 2026-02-09 strings. Do not change."""
         assert MODELS["claude"]["id"] == "claude-opus-4-6"
-        assert MODELS["gpt"]["id"] == "gpt-5.2"
+        assert MODELS["mistral"]["id"] == "mistral-large-latest"
         assert MODELS["grok"]["id"] == "grok-4-1-fast-reasoning"
         assert MODELS["gemini"]["id"] == "gemini-2.5-pro"
         assert MODELS["deepseek"]["id"] == "deepseek-chat"
@@ -40,7 +40,7 @@ class TestModelRegistry:
         assert len(set(tokens)) == 1, "All models should have identical max_tokens"
 
     def test_verify_model_exists(self):
-        assert VERIFY_MODEL["id"] == "perplexity"
+        assert VERIFY_MODEL["id"] == "sonar-pro"
 
 
 class TestTokenBudgets:

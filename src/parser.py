@@ -141,6 +141,9 @@ def parse_response(text: str, model: str = "unknown") -> ParsedResponse:
     - Section 3: UNKNOWNS
     - Section 4: NEXT STEP
     """
+    if not text:
+        return ParsedResponse(model=model, raw="")
+
     parsed = ParsedResponse(model=model, raw=text)
 
     # Section markers — flexible matching

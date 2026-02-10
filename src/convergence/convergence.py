@@ -17,6 +17,7 @@ from typing import Optional
 from dataclasses import dataclass
 
 from src.parser import Claim
+from src.convergence.claim_tuples import extract_tuples, group_relation
 
 
 @dataclass
@@ -137,14 +138,50 @@ def _jaccard_similarity(set_a: set, set_b: set) -> float:
 def _mean_pairwise_jaccard(claims_per_model: list[list[Claim]]) -> float:
     """Mean pairwise Jaccard between all model pairs.
 
-    For each pair of models, compute Jaccard on the UNION of their
-    claim tokens — treating each model's claims as a bag of words.
+    Extracts normalized claim tuples (subject, relation, object, value)
+    and computes Jaccard on those — so "CBD binds VDAC1" and
+    "cannabidiol interacts with VDAC1" produce overlapping sets.
+
+    Falls back to token-based Jaccard if tuple extraction yields
+    empty sets (e.g., non-scientific text).
     """
     n = len(claims_per_model)
     if n < 2:
         return 1.0
 
-    # Build token sets per model (union of all claim tokens)
+    # Build tuple sets per model, projected to (subject, relation, object)
+    # triples for Jaccard comparison. The value field adds precision but
+    # prevents matching: "(cbd, binds, vdac1, kd=1.10e-05)" should match
+    # "(cbd, binds, vdac1, )" — it's the same scientific claim.
+    model_tuples = []
+    for model_claims in claims_per_model:
+        triples = set()
+        for claim in model_claims:
+            for t in extract_tuples(claim):
+                triples.add((t.subject, group_relation(t.relation), t.object))
+        model_tuples.append(triples)
+
+    # If any model produced zero tuples, fall back to token-based
+    if any(len(t) == 0 for t in model_tuples):
+        return _mean_pairwise_jaccard_tokens(claims_per_model)
+
+    # Mean pairwise Jaccard on tuple sets
+    scores = []
+    for i, j in combinations(range(n), 2):
+        scores.append(_jaccard_similarity(model_tuples[i], model_tuples[j]))
+
+    return float(np.mean(scores)) if scores else 0.0
+
+
+def _mean_pairwise_jaccard_tokens(claims_per_model: list[list[Claim]]) -> float:
+    """Fallback: mean pairwise Jaccard on raw token bags.
+
+    Used when tuple extraction yields empty sets (non-scientific text).
+    """
+    n = len(claims_per_model)
+    if n < 2:
+        return 1.0
+
     model_tokens = []
     for model_claims in claims_per_model:
         tokens = set()
@@ -152,7 +189,6 @@ def _mean_pairwise_jaccard(claims_per_model: list[list[Claim]]) -> float:
             tokens |= _tokenize_claim(claim)
         model_tokens.append(tokens)
 
-    # Mean pairwise Jaccard
     scores = []
     for i, j in combinations(range(n), 2):
         scores.append(_jaccard_similarity(model_tokens[i], model_tokens[j]))

@@ -367,7 +367,7 @@ class TestFullCompilation:
 
     def test_all_models_present(self):
         result = compile(CBD_QUESTION)
-        expected = {"claude", "gpt", "grok", "gemini", "deepseek"}
+        expected = {"claude", "mistral", "grok", "gemini", "deepseek"}
         assert set(result["models"].keys()) == expected
 
     def test_domain_override(self):

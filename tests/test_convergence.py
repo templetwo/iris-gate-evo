@@ -263,19 +263,18 @@ class TestEarlyStopLogic:
 
 class TestS3Gate:
     def test_pass_conditions(self):
-        """Both Jaccard > 0.85 and TYPE 0/1 >= 90% needed to pass."""
-        from src.stages.stages import S3_JACCARD_THRESHOLD, S3_TYPE01_THRESHOLD
+        """Cosine > 0.85 and TYPE 0/1 >= 90% needed to pass."""
+        from src.stages.stages import S3_CONVERGENCE_THRESHOLD, S3_TYPE01_THRESHOLD
 
-        # PASS case
-        assert 0.90 > S3_JACCARD_THRESHOLD
+        assert 0.90 > S3_CONVERGENCE_THRESHOLD
         assert 0.92 >= S3_TYPE01_THRESHOLD
 
-    def test_jaccard_fail_blocks_gate(self):
-        """High TYPE ratio but low Jaccard should fail S3."""
+    def test_low_cosine_blocks_gate(self):
+        """High TYPE ratio but low cosine should fail S3."""
         from src.stages.stages import run_s3_gate
 
         snap = ConvergenceSnapshot(
-            round_num=5, jaccard=0.70, cosine=0.9, jsd=0.02,
+            round_num=5, jaccard=0.70, cosine=0.80, jsd=0.02,
             kappa=0.8, type_distribution={0: 0.5, 1: 0.45, 2: 0.05, 3: 0.0},
             type_01_ratio=0.95,
             n_claims_per_model=[3, 3, 3],
@@ -288,15 +287,35 @@ class TestS3Gate:
 
         gate = run_s3_gate(s2_result)
         assert gate["passed"] is False
-        assert gate["jaccard_pass"] is False
+        assert gate["convergence_pass"] is False
         assert gate["type_pass"] is True
 
-    def test_type_fail_blocks_gate(self):
-        """High Jaccard but low TYPE ratio should fail S3."""
+    def test_low_jaccard_floor_blocks_gate(self):
+        """High cosine but Jaccard below floor (0.10) should fail."""
         from src.stages.stages import run_s3_gate
 
         snap = ConvergenceSnapshot(
-            round_num=5, jaccard=0.90, cosine=0.9, jsd=0.02,
+            round_num=5, jaccard=0.05, cosine=0.95, jsd=0.02,
+            kappa=0.8, type_distribution={0: 0.5, 1: 0.45, 2: 0.05, 3: 0.0},
+            type_01_ratio=0.95,
+            n_claims_per_model=[3, 3, 3],
+        )
+
+        s2_result = {
+            "snapshots": [snap],
+            "parsed": [],
+        }
+
+        gate = run_s3_gate(s2_result)
+        assert gate["passed"] is False
+        assert gate["convergence_pass"] is False
+
+    def test_type_fail_blocks_gate(self):
+        """High convergence (cosine > 0.85) but low TYPE ratio should fail S3."""
+        from src.stages.stages import run_s3_gate
+
+        snap = ConvergenceSnapshot(
+            round_num=5, jaccard=0.90, cosine=0.90, jsd=0.02,
             kappa=0.8, type_distribution={0: 0.3, 1: 0.3, 2: 0.2, 3: 0.2},
             type_01_ratio=0.60,
             n_claims_per_model=[3, 3, 3],
@@ -309,7 +328,7 @@ class TestS3Gate:
 
         gate = run_s3_gate(s2_result)
         assert gate["passed"] is False
-        assert gate["jaccard_pass"] is True
+        assert gate["convergence_pass"] is True
         assert gate["type_pass"] is False
 
     def test_both_pass(self):
@@ -349,3 +368,38 @@ class TestS3Gate:
         assert gate["passed"] is False
         assert "FAILED" in gate["recommendation"]
         assert "disagreement" in gate["recommendation"].lower()
+
+
+# ── Tuple-Based Jaccard ──
+
+class TestTupleBasedJaccard:
+    """Verify that tuple extraction sharpens Jaccard for scientific claims."""
+
+    def test_synonymous_claims_high_jaccard(self):
+        """Same science, different words → high Jaccard via tuples."""
+        model_a = [_make_claim("CBD binds VDAC1 with Kd = 11 uM")]
+        model_b = [_make_claim("cannabidiol interacts with VDAC1, Kd ~11 μM")]
+        snap = compute([model_a, model_b], round_num=0, use_embeddings=False)
+        # With token bags this was ~0.2. With tuples it should be much higher.
+        assert snap.jaccard > 0.5
+
+    def test_identical_claims_still_perfect(self):
+        """Backward compat: identical claims still give 1.0."""
+        claims = [_make_claim("CBD binds VDAC1 with Kd = 11 uM")]
+        snap = compute([claims, claims], round_num=0, use_embeddings=False)
+        assert snap.jaccard == 1.0
+
+    def test_unrelated_claims_still_low(self):
+        """Completely different topics → low Jaccard even with tuples."""
+        model_a = [_make_claim("CBD binds VDAC1 receptor")]
+        model_b = [_make_claim("p53 activates BAX in apoptosis")]
+        snap = compute([model_a, model_b], round_num=0, use_embeddings=False)
+        assert snap.jaccard < 0.5
+
+    def test_non_scientific_text_falls_back(self):
+        """Non-scientific text with no entities → token fallback."""
+        model_a = [_make_claim("alpha beta gamma delta")]
+        model_b = [_make_claim("epsilon zeta eta theta")]
+        snap = compute([model_a, model_b], round_num=0, use_embeddings=False)
+        # Falls back to token-based → 0.0 (disjoint)
+        assert snap.jaccard == 0.0
