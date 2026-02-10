@@ -29,6 +29,7 @@ from src.compiler import compile
 from src.pulse import fire_sync
 from src.models import TOKEN_BUDGETS
 from src.preflight import run_preflight, format_preflight
+from src.dashboard import Dashboard
 
 
 # The test question from the spec — validates the full pipeline
@@ -158,49 +159,131 @@ def display_s5(s5_result) -> None:
 
 async def run_full_pipeline(compiled: dict, args) -> dict:
     """Run the complete IRIS Gate Evo pipeline."""
-    from src.stages.stages import run_s1, run_s2, run_s3_gate
+    from src.stages.stages import (
+        run_s1, run_s2, run_s3_gate,
+        build_recirculation_context, enrich_compiled_for_recirculation,
+    )
     from src.verify.verify import run_verify, apply_verdicts
     from src.gate.gate import run_gate
     from src.hypothesis.s4_hypothesis import run_s4
     from src.monte_carlo.monte_carlo import run_s5
     from src.protocol.protocol import generate_protocol_package, save_protocol, format_human_summary
 
+    MAX_RECIRCULATIONS = 2  # Max 3 total cycles (1 initial + 2 recirculations)
+
     session_seed = int(time.time()) % 2**31
     total_calls = 0
     stop_stage = getattr(args, 'stage', 'full')
     offline = getattr(args, 'offline', False)
+    use_dashboard = getattr(args, 'dashboard', True)
 
-    # ── S1: Formulation ──
-    print("\nFiring S1 — PULSE...")
-    s1_result = await run_s1(compiled)
-    total_calls += s1_result["total_calls"]
-    n_ok = len(s1_result["parsed"])
-    print(f"  {n_ok} mirrors responded")
-    display_convergence(s1_result["snapshot"].__dict__ if hasattr(s1_result["snapshot"], '__dict__') else s1_result["snapshot"], "S1")
+    # Initialize dashboard
+    dash = Dashboard(enabled=use_dashboard and sys.stdout.isatty())
+    type01_threshold = compiled.get("s3_type01_threshold", 0.90)
+    dash.set_thresholds(cosine=0.85, type01=type01_threshold, jaccard_floor=0.10)
 
-    if stop_stage == "s1":
-        print(f"\n[--stage s1] Stopping. {total_calls} calls used.")
-        return {"s1": s1_result, "total_calls": total_calls}
+    current_compiled = compiled
+    s1_result = None
+    s2_result = None
+    s3_result = None
+    cycle = 0
 
-    # ── S2: Refinement ──
-    print("\nStarting S2 — Anonymized Debate...")
-    s2_result = await run_s2(compiled, s1_result, session_seed=session_seed)
-    total_calls += s2_result["total_calls"]
-    display_s2_progress(s2_result)
+    def _on_s2_round(round_num, max_rounds, snapshot, d):
+        """Dashboard callback — fires after each S2 debate round."""
+        dash.update_round(round_num, max_rounds)
+        dash.update_metrics(snapshot)
+        dash.update_delta(d)
+        dash.update_calls(total_calls + round_num * 5)  # Approximate
+        dash.render()
 
-    if stop_stage == "s2":
-        print(f"\n[--stage s2] Stopping. {total_calls} calls used.")
-        return {"s1": s1_result, "s2": s2_result, "total_calls": total_calls}
+    while cycle <= MAX_RECIRCULATIONS:
+        cycle_label = f"CYCLE {cycle + 1}" if cycle > 0 else ""
 
-    # ── S3: Convergence Gate ──
-    s3_result = run_s3_gate(s2_result)
-    display_s3_gate(s3_result)
+        # ── S1: Formulation ──
+        dash.update_cycle(cycle)
 
-    if stop_stage == "s3" or not s3_result["passed"]:
-        if not s3_result["passed"]:
-            print("\nS3 gate failed. Routing to human review.")
+        if cycle > 0:
+            print(f"\n{'=' * 60}")
+            print(f"RECIRCULATION {cycle_label} — feeding converged claims back")
+            print(f"{'=' * 60}")
+
+        dash.update_stage(f"S1 — PULSE{f' ({cycle_label})' if cycle_label else ''}")
+        print(f"\nFiring S1 — PULSE...{f' ({cycle_label})' if cycle_label else ''}")
+        s1_result = await run_s1(current_compiled)
+        total_calls += s1_result["total_calls"]
+        n_ok = len(s1_result["parsed"])
+        print(f"  {n_ok} mirrors responded")
+
+        dash.update_models(n_ok)
+        dash.update_calls(total_calls)
+        dash.update_metrics(s1_result["snapshot"])
+        dash.update_stage(f"S1 complete{f' ({cycle_label})' if cycle_label else ''}")
+        dash.render()
+
+        display_convergence(s1_result["snapshot"].__dict__ if hasattr(s1_result["snapshot"], '__dict__') else s1_result["snapshot"], "S1")
+
+        if stop_stage == "s1":
+            dash.finalize()
+            print(f"\n[--stage s1] Stopping. {total_calls} calls used.")
+            return {"s1": s1_result, "total_calls": total_calls}
+
+        # ── S2: Refinement ──
+        dash.update_stage(f"S2 — Debate{f' ({cycle_label})' if cycle_label else ''}")
+        print(f"\nStarting S2 — Anonymized Debate...{f' ({cycle_label})' if cycle_label else ''}")
+        s2_result = await run_s2(
+            current_compiled, s1_result,
+            session_seed=session_seed + cycle,
+            on_round_complete=_on_s2_round,
+        )
+        total_calls += s2_result["total_calls"]
+        dash.update_calls(total_calls)
+        display_s2_progress(s2_result)
+
+        if stop_stage == "s2":
+            dash.finalize()
+            print(f"\n[--stage s2] Stopping. {total_calls} calls used.")
+            return {"s1": s1_result, "s2": s2_result, "total_calls": total_calls}
+
+        # ── S3: Convergence Gate (domain-adaptive threshold) ──
+        dash.update_stage(f"S3 — Gate{f' ({cycle_label})' if cycle_label else ''}")
+        s3_result = run_s3_gate(s2_result, compiled=compiled)
+        dash.set_gate_status(s3_result["passed"])
+        dash.render()
+        display_s3_gate(s3_result)
+
+        if stop_stage == "s3":
+            dash.finalize()
+            print(f"\n{total_calls} calls used.")
+            return {"s1": s1_result, "s2": s2_result, "s3": s3_result, "total_calls": total_calls}
+
+        if s3_result["passed"]:
+            break  # Gate passed — continue to VERIFY and beyond
+
+        # ── S3 FAILED — Recirculate or route to human review ──
+        if cycle < MAX_RECIRCULATIONS:
+            recirculation_context = build_recirculation_context(s2_result, s3_result)
+            if recirculation_context:
+                current_compiled = enrich_compiled_for_recirculation(
+                    compiled,  # Always enrich from ORIGINAL compiled, not stacked
+                    recirculation_context,
+                    cycle_num=cycle + 2,
+                )
+                print(f"\nRecirculating — injecting {len(recirculation_context)} chars of prior consensus")
+                cycle += 1
+                continue
+            else:
+                print("\nNo TYPE 0/1 claims to recirculate. Routing to human review.")
+                break
+        else:
+            print(f"\nMax recirculations ({MAX_RECIRCULATIONS}) reached. Routing to human review.")
+            break
+
+    # If S3 never passed, stop here
+    if not s3_result["passed"]:
+        dash.finalize()
+        print(f"\nS3 gate failed after {cycle + 1} cycle(s). Human review required.")
         print(f"\n{total_calls} calls used.")
-        return {"s1": s1_result, "s2": s2_result, "s3": s3_result, "total_calls": total_calls}
+        return {"s1": s1_result, "s2": s2_result, "s3": s3_result, "total_calls": total_calls, "cycles": cycle + 1}
 
     # Build pipeline result for downstream stages
     from dataclasses import asdict
@@ -273,6 +356,8 @@ async def run_full_pipeline(compiled: dict, args) -> dict:
     paths = save_protocol(package, output_dir=str(output_dir))
 
     # Display summary
+    dash.update_stage("S6 — COMPLETE")
+    dash.finalize()
     summary = format_human_summary(package)
     print(f"\n{summary}")
     print(f"\nSaved: {paths.get('json', '')}")
@@ -345,8 +430,14 @@ def main():
         action="store_true",
         help="Skip API key preflight check",
     )
+    parser.add_argument(
+        "--no-dashboard",
+        action="store_true",
+        help="Disable live dashboard (plain text output)",
+    )
 
     args = parser.parse_args()
+    args.dashboard = not args.no_dashboard
 
     print("\nIRIS Gate Evo")
     print(f"Question: {args.question[:80]}{'...' if len(args.question) > 80 else ''}")

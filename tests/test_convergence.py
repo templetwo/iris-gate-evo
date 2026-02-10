@@ -403,3 +403,56 @@ class TestTupleBasedJaccard:
         snap = compute([model_a, model_b], round_num=0, use_embeddings=False)
         # Falls back to token-based → 0.0 (disjoint)
         assert snap.jaccard == 0.0
+
+
+# ── Domain-Adaptive S3 Gate ──
+
+class TestDomainAdaptiveGate:
+    def test_frontier_threshold_passes_at_80(self):
+        """84% TYPE 0/1 should PASS with frontier threshold (0.80)."""
+        from src.stages.stages import run_s3_gate
+
+        snap = ConvergenceSnapshot(
+            round_num=10, jaccard=0.35, cosine=0.90, jsd=0.02,
+            kappa=0.7, type_distribution={0: 0.4, 1: 0.44, 2: 0.16, 3: 0.0},
+            type_01_ratio=0.84,
+            n_claims_per_model=[5, 5, 5, 5, 5],
+        )
+        s2_result = {"snapshots": [snap], "parsed": []}
+        compiled = {"s3_type01_threshold": 0.80}
+
+        gate = run_s3_gate(s2_result, compiled=compiled)
+        assert gate["passed"] is True
+        assert gate["type_01_threshold"] == 0.80
+
+    def test_same_snapshot_fails_with_established_threshold(self):
+        """84% TYPE 0/1 should FAIL with established threshold (0.90)."""
+        from src.stages.stages import run_s3_gate
+
+        snap = ConvergenceSnapshot(
+            round_num=10, jaccard=0.35, cosine=0.90, jsd=0.02,
+            kappa=0.7, type_distribution={0: 0.4, 1: 0.44, 2: 0.16, 3: 0.0},
+            type_01_ratio=0.84,
+            n_claims_per_model=[5, 5, 5, 5, 5],
+        )
+        s2_result = {"snapshots": [snap], "parsed": []}
+        compiled = {"s3_type01_threshold": 0.90}
+
+        gate = run_s3_gate(s2_result, compiled=compiled)
+        assert gate["passed"] is False
+        assert gate["type_pass"] is False
+
+    def test_no_compiled_uses_default(self):
+        """Without compiled dict, should use default 0.90 threshold."""
+        from src.stages.stages import run_s3_gate, S3_TYPE01_THRESHOLD
+
+        snap = ConvergenceSnapshot(
+            round_num=5, jaccard=0.90, cosine=0.90, jsd=0.02,
+            kappa=0.8, type_distribution={0: 0.5, 1: 0.45, 2: 0.05, 3: 0.0},
+            type_01_ratio=0.95,
+            n_claims_per_model=[3, 3, 3],
+        )
+        s2_result = {"snapshots": [snap], "parsed": []}
+
+        gate = run_s3_gate(s2_result)
+        assert gate["type_01_threshold"] == S3_TYPE01_THRESHOLD

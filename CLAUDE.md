@@ -6,23 +6,28 @@
 
 A multi-LLM convergence protocol for scientific discovery. Five independent models receive the same compiled prompt, debate anonymously, and converge on truth through quantitative metrics. The output is a falsifiable protocol package — not an opinion.
 
-## Current State (2026-02-09)
+## Current State (2026-02-10)
 
-**ALL PHASES COMPLETE. Full pipeline: C0 → S1 → S2 → S3 → VERIFY → GATE → S4 → S5 → S6. 255 tests passing.**
+**ALL PHASES COMPLETE. Full pipeline: C0 → S1 → S2 → S3 → VERIFY → GATE → S4 → S5 → S6. 350 tests passing.**
 
 - C0 compiles across 11 domains with hybrid keyword+embedding detection
+- C0 computes domain-adaptive TYPE thresholds (established=90%, moderate=85%, frontier=80%)
 - PULSE dispatches to 5 models in parallel via LiteLLM async
 - Parser extracts structured claims (TYPE/CONFIDENCE/MECHANISM/FALSIFIABLE BY)
 - Anonymizer randomizes mirror labels every round (seed + round_num)
-- Convergence engine: Jaccard, Cosine, JSD, Kappa — computed on CLAIMS, not raw text
+- Convergence engine: Jaccard (tuple-based), Cosine, JSD, Kappa — computed on CLAIMS, not raw text
+- Claim tuple extraction: synonym resolution, relation grouping, value normalization, bidirectional sorting
 - S2 debate loop with AND early-stop (delta < 1% for 3 consecutive AND TYPE 0/1 >= 80%)
-- S3 gate: Jaccard > 0.85 AND TYPE 0/1 >= 90%, failure → human review with divergence map
+- S3 gate: Cosine > 0.85 (primary) + Jaccard floor 0.10 + domain-adaptive TYPE threshold
+- S3 recirculation: on failure, converged TYPE 0/1 claims fed back as prior consensus (max 3 cycles)
+- Recirculation dedup uses claim tuple overlap, not string matching
 - VERIFY: Perplexity-backed TYPE 2 checking → PROMOTED/HELD/NOVEL/CONTRADICTED
 - Lab Gate: Three-criteria filter (falsifiable, feasible, novel), offline fallback
 - S4: Hypothesis operationalization with Monte Carlo parameter maps
 - S5: Pure Python simulation, 300+ iterations, 95% CIs, effect sizes, power estimates
 - S6: Protocol package generator with JSON + human-readable summary
-- main.py wired for full pipeline with --stage, --offline, --compile-only flags
+- Live terminal dashboard with real-time convergence metrics
+- main.py wired for full pipeline with --stage, --offline, --compile-only, --no-dashboard flags
 
 ## Build Order
 
@@ -65,7 +70,7 @@ python main.py                                        # Default CBD test questio
 2. **Token budgets decrease** — S1: 800, S2: 800→700, S3: 600
 3. **Convergence is server-side** — Jaccard, Cosine, JSD, Kappa. Never self-reported.
 4. **Early-stop saves budget** — S2 exits when delta < 1% for 3 rounds AND TYPE 0/1 >= 80%
-5. **Failure is data** — Jaccard < 0.85 at S3 routes to human review, not silent retry
+5. **Failure is data** — S3 failure recirculates (max 3 cycles), then routes to human review
 6. **Lab Gate kills bad hypotheses** — Falsifiable AND feasible AND novel, all three required
 7. **S5 is pure Python** — Zero LLM calls. Monte Carlo only.
 
@@ -100,7 +105,8 @@ Do NOT use older strings from iris-gate v0.2.
 | `src/monte_carlo/monte_carlo.py` | S5 — pure Python Monte Carlo, 300+ iterations, 95% CIs |
 | `src/protocol/protocol.py` | S6 — protocol package generator (JSON + summary) |
 | `priors/*.json` | Quantitative priors across 11 scientific domains |
-| `tests/` | 255 tests across 9 test files |
+| `src/dashboard.py` | Live terminal dashboard — ANSI real-time metrics |
+| `tests/` | 350 tests across 10 test files |
 
 ## Lineage
 

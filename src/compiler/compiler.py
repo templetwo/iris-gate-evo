@@ -20,6 +20,59 @@ from typing import Optional
 
 from src.models import MODELS, TOKEN_BUDGETS
 
+
+# ── Domain Maturity Tiers ──
+# Determines the S3 TYPE 0/1 threshold. Established domains with deep literature
+# can demand 90%. Frontier or cross-domain questions have irreducible speculation.
+
+DOMAIN_MATURITY: dict[str, str] = {
+    "pharmacology": "established",      # Decades of Kd/IC50 data
+    "neuroscience": "established",       # Well-characterized pathways
+    "immunology": "established",         # PD-1/PD-L1, cytokines well-studied
+    "genetics": "established",           # CRISPR, methylation well-quantified
+    "oncology": "established",           # Warburg, angiogenesis well-documented
+    "chemistry": "established",          # Michaelis-Menten, enzyme kinetics
+    "ecology": "moderate",              # Complex systems, some uncertainty
+    "physics": "established",            # Phase transitions, Ising model
+    "materials": "moderate",            # Band gap engineering, active research
+    "consciousness": "frontier",         # Kuramoto/phi models still debated
+    "bioelectric": "frontier",          # Gap junctions, Vmem still emerging
+    "general": "moderate",              # Unknown domain, moderate caution
+}
+
+# TYPE 0/1 thresholds by maturity tier
+MATURITY_TYPE01_THRESHOLD: dict[str, float] = {
+    "established": 0.90,
+    "moderate": 0.85,
+    "frontier": 0.80,
+}
+
+
+def compute_type01_threshold(domains: list[str], cross_domain: bool) -> float:
+    """Compute the S3 TYPE 0/1 threshold based on domain maturity.
+
+    Cross-domain questions always use the LOWEST maturity tier of any
+    involved domain — the weakest link sets the bar.
+    """
+    if not domains:
+        return MATURITY_TYPE01_THRESHOLD["moderate"]
+
+    tiers = [DOMAIN_MATURITY.get(d, "moderate") for d in domains]
+
+    # Cross-domain inherently adds speculation — drop one tier
+    if cross_domain and len(domains) > 1:
+        tier_order = ["frontier", "moderate", "established"]
+        worst_tier = min(tiers, key=lambda t: tier_order.index(t))
+        # Drop one level from the worst
+        worst_idx = tier_order.index(worst_tier)
+        effective_tier = tier_order[max(0, worst_idx)]  # Can't go below frontier
+    else:
+        # Single domain — use its tier directly
+        tier_order = ["frontier", "moderate", "established"]
+        effective_tier = min(tiers, key=lambda t: tier_order.index(t))
+
+    return MATURITY_TYPE01_THRESHOLD[effective_tier]
+
 # ---------------------------------------------------------------------------
 # Domain detection: keywords (fast path) + descriptions (embedding fallback)
 # ---------------------------------------------------------------------------
@@ -391,6 +444,9 @@ def compile(question: str, domain_override: Optional[str] = None) -> dict:
     domain_label = "+".join(domains)
     session_id = f"evo_{timestamp}_{domain_label}"
 
+    # Step 6 — Domain-adaptive TYPE threshold
+    s3_type01_threshold = compute_type01_threshold(domains, cross_domain)
+
     return {
         "session_id": session_id,
         "question": question,
@@ -401,5 +457,6 @@ def compile(question: str, domain_override: Optional[str] = None) -> dict:
         "prompt": prompt,
         "models": models_config,
         "token_budgets": TOKEN_BUDGETS,
+        "s3_type01_threshold": s3_type01_threshold,
         "spm_target": "maximize coherence quality × goal attainment / calls consumed",
     }

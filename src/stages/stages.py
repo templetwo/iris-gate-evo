@@ -71,6 +71,7 @@ async def run_s2(
     compiled: dict,
     s1_result: dict,
     session_seed: Optional[int] = None,
+    on_round_complete: Optional[callable] = None,
 ) -> dict:
     """S2 — Refinement Loop. Anonymized cross-model debate.
 
@@ -160,6 +161,10 @@ async def run_s2(
         }
         round_logs.append(round_log)
 
+        # Dashboard callback — fire after each round
+        if on_round_complete:
+            on_round_complete(round_num, S2_MAX_ROUNDS, snapshot, d)
+
         # --- Early-stop check: BOTH conditions must be true ---
         delta_stable = d < S2_EARLY_STOP_DELTA
         type_stable = snapshot.type_01_ratio >= S2_EARLY_STOP_TYPE01_THRESHOLD
@@ -188,7 +193,7 @@ async def run_s2(
     }
 
 
-def run_s3_gate(s2_result: dict) -> dict:
+def run_s3_gate(s2_result: dict, compiled: dict = None) -> dict:
     """S3 — Stable Attractor Gate. Strictest convergence check.
 
     PASS requires:
@@ -206,6 +211,13 @@ def run_s3_gate(s2_result: dict) -> dict:
     """
     final_snapshot = s2_result["snapshots"][-1]
 
+    # Domain-adaptive TYPE threshold: the compiler sets this based on
+    # domain maturity. Established pharmacology = 0.90, frontier
+    # cross-domain (bioelectric + pharmacology) = 0.80.
+    type01_threshold = S3_TYPE01_THRESHOLD  # default
+    if compiled and "s3_type01_threshold" in compiled:
+        type01_threshold = compiled["s3_type01_threshold"]
+
     # Convergence check: cosine (semantic similarity on claim embeddings)
     # is the primary metric. Jaccard floor prevents pathological cases where
     # models agree semantically but share zero vocabulary (shouldn't happen
@@ -213,7 +225,7 @@ def run_s3_gate(s2_result: dict) -> dict:
     convergence_score = final_snapshot.cosine
     jaccard_floor_pass = final_snapshot.jaccard >= S3_JACCARD_FLOOR
     convergence_pass = (convergence_score > S3_CONVERGENCE_THRESHOLD) and jaccard_floor_pass
-    type_pass = final_snapshot.type_01_ratio >= S3_TYPE01_THRESHOLD
+    type_pass = final_snapshot.type_01_ratio >= type01_threshold
 
     # Legacy: still report individual Jaccard pass for diagnostics
     jaccard_pass = final_snapshot.jaccard > S3_JACCARD_THRESHOLD
@@ -230,7 +242,7 @@ def run_s3_gate(s2_result: dict) -> dict:
         "jaccard_threshold": S3_JACCARD_THRESHOLD,
         "jaccard_pass": jaccard_pass,
         "type_01_ratio": round(final_snapshot.type_01_ratio, 4),
-        "type_01_threshold": S3_TYPE01_THRESHOLD,
+        "type_01_threshold": type01_threshold,
         "type_pass": type_pass,
         "cosine": round(final_snapshot.cosine, 4),
         "jsd": round(final_snapshot.jsd, 4),
@@ -309,7 +321,7 @@ async def run_pipeline(
     s2_result = await run_s2(compiled, s1_result, session_seed=session_seed)
 
     # S3
-    s3_result = run_s3_gate(s2_result)
+    s3_result = run_s3_gate(s2_result, compiled=compiled)
 
     total_calls = s1_result["total_calls"] + s2_result["total_calls"]
 
@@ -347,6 +359,153 @@ def _extract_final_claims(parsed: list[ParsedResponse]) -> list[dict]:
                 "model": p.model,
             })
     return claims
+
+
+def build_recirculation_context(s2_result: dict, s3_result: dict) -> str:
+    """Build a prior-consensus block from converged claims for recirculation.
+
+    Extracts TYPE 0/1 claims (established/replicated) from the failed cycle
+    and formats them as accumulated knowledge for the next S1 prompt.
+    Deduplication uses claim tuple extraction — two claims expressing the
+    same science in different words will produce overlapping tuples and dedup.
+    """
+    from src.convergence.claim_tuples import extract_tuples, group_relation
+    from src.parser import Claim
+
+    parsed = s2_result["parsed"]
+
+    # Collect TYPE 0/1 claims — these are what the mirrors DID agree on
+    converged_claims = []
+    for p in parsed:
+        for c in p.claims:
+            if c.type in (0, 1) and c.confidence >= 0.7:
+                converged_claims.append({
+                    "statement": c.statement,
+                    "type": c.type,
+                    "confidence": c.confidence,
+                    "mechanism": c.mechanism,
+                })
+
+    # Deduplicate using claim tuples — claims with overlapping tuple sets
+    # are expressing the same science and should merge (keep highest confidence)
+    seen_tuples: set = set()
+    unique_claims = []
+    for claim in converged_claims:
+        claim_obj = Claim(
+            statement=claim["statement"],
+            type=claim["type"],
+            confidence=claim["confidence"],
+            mechanism=claim["mechanism"],
+        )
+        tuples = extract_tuples(claim_obj)
+        # Project to grouped triples (value-free) for comparison
+        grouped = frozenset(
+            (t.subject, group_relation(t.relation), t.object) for t in tuples
+        )
+
+        if grouped and grouped & seen_tuples:
+            # Overlapping tuples — this is a duplicate. Skip it, but update
+            # confidence of the existing claim if this one is higher.
+            for existing in unique_claims:
+                existing_obj = Claim(
+                    statement=existing["statement"],
+                    type=existing["type"],
+                    confidence=existing["confidence"],
+                    mechanism=existing["mechanism"],
+                )
+                existing_tuples = extract_tuples(existing_obj)
+                existing_grouped = frozenset(
+                    (t.subject, group_relation(t.relation), t.object) for t in existing_tuples
+                )
+                if existing_grouped & grouped:
+                    existing["confidence"] = max(existing["confidence"], claim["confidence"])
+                    break
+            continue
+
+        seen_tuples |= grouped
+        unique_claims.append(claim)
+
+    if not unique_claims:
+        return ""
+
+    # Format as prior consensus block
+    lines = [
+        "═══════════════════════════════════════════════════════",
+        "PRIOR CONSENSUS — ACCUMULATED FROM PREVIOUS CYCLE",
+        "═══════════════════════════════════════════════════════",
+        "",
+        "The following claims reached TYPE 0/1 consensus across five",
+        "independent mirrors in a previous debate cycle. Treat them as",
+        "ESTABLISHED PRIORS — do not re-derive from scratch. Build on them.",
+        "Challenge them ONLY if you have strong counter-evidence.",
+        "",
+    ]
+
+    for i, claim in enumerate(unique_claims[:12], 1):  # Cap at 12 to save tokens
+        type_label = "ESTABLISHED" if claim["type"] == 0 else "REPLICATED"
+        lines.append(f"  [{type_label}] {claim['statement']}")
+        if claim["mechanism"]:
+            lines.append(f"    MECHANISM: {claim['mechanism']}")
+        lines.append(f"    CONFIDENCE: {claim['confidence']}")
+        lines.append("")
+
+    # Add the TYPE distribution failure reason so models know what to fix
+    type_dist = s3_result.get("type_distribution", {})
+    type_01_ratio = s3_result.get("type_01_ratio", 0)
+    lines.append(
+        f"NOTE: Previous cycle achieved {type_01_ratio:.0%} TYPE 0/1 claims "
+        f"(need 90%). Too many speculative (TYPE 2/3) claims remained. "
+        f"This cycle: convert speculative claims to established ones with "
+        f"evidence, or explicitly REJECT claims you cannot support."
+    )
+    lines.append("═══════════════════════════════════════════════════════")
+
+    return "\n".join(lines)
+
+
+def enrich_compiled_for_recirculation(
+    compiled: dict,
+    recirculation_context: str,
+    cycle_num: int,
+) -> dict:
+    """Inject recirculation context into the compiled prompt for another S1→S2→S3 cycle.
+
+    The original priors stay. The recirculation context is appended before the
+    scaffold sections, giving models both the quantitative priors AND the
+    accumulated consensus from previous cycles.
+    """
+    if not recirculation_context:
+        return compiled
+
+    original_prompt = compiled["prompt"]
+
+    # Inject the recirculation context before the SECTION 1 marker
+    marker = "SECTION 1: DECOMPOSITION"
+    if marker in original_prompt:
+        parts = original_prompt.split(marker, 1)
+        enriched_prompt = (
+            parts[0]
+            + f"\n{recirculation_context}\n\n"
+            + marker
+            + parts[1]
+        )
+    else:
+        # Fallback: append to the end
+        enriched_prompt = original_prompt + f"\n\n{recirculation_context}"
+
+    # Update session_id to track cycles
+    session_id = compiled["session_id"]
+    if "_cycle" not in session_id:
+        session_id = f"{session_id}_cycle{cycle_num}"
+    else:
+        # Replace existing cycle marker
+        session_id = session_id.rsplit("_cycle", 1)[0] + f"_cycle{cycle_num}"
+
+    return {
+        **compiled,
+        "prompt": enriched_prompt,
+        "session_id": session_id,
+    }
 
 
 def run_pipeline_sync(compiled: dict, session_seed: Optional[int] = None) -> dict:
