@@ -1,0 +1,41 @@
+# Environment & secrets
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+*.egg
+.eggs/
+venv/
+.venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Models & caches
+*.pt
+*.bin
+*.safetensors
+sentence-transformers/
+
+# Run artifacts (keep structure, not data)
+runs/*
+!runs/.gitkeep
+
+# Archives already consumed
+claude-web-offerings.zip
+
+# OS
+Thumbs.db

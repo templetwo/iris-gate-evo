@@ -1,0 +1,49 @@
+{
+  "domain": "bioelectric",
+  "version": "0.1.0",
+  "description": "Quantitative priors for membrane potential, gap junctions, and bioelectric signaling",
+  "priors": [
+    {
+      "param": "cancer_cell_psi",
+      "value": -120,
+      "unit": "mV",
+      "type": 0,
+      "source": "Yang & Bhrackett 2011; cancer cells consistently depolarized vs healthy"
+    },
+    {
+      "param": "healthy_cell_psi",
+      "value": -180,
+      "unit": "mV",
+      "type": 0,
+      "source": "Levin 2014, mitochondrial membrane potential in healthy cells"
+    },
+    {
+      "param": "cancer_ROS_baseline",
+      "value": 0.45,
+      "unit": "relative",
+      "type": 1,
+      "source": "Trachootham et al. 2009, elevated ROS in cancer"
+    },
+    {
+      "param": "healthy_ROS_baseline",
+      "value": 0.08,
+      "unit": "relative",
+      "type": 1,
+      "source": "Trachootham et al. 2009, normal ROS homeostasis"
+    },
+    {
+      "param": "gap_junction_permeability_healthy",
+      "value": 0.8,
+      "unit": "relative",
+      "type": 1,
+      "source": "Aasen et al. 2016, functional GJ communication in normal tissue"
+    },
+    {
+      "param": "gap_junction_permeability_cancer",
+      "value": 0.2,
+      "unit": "relative",
+      "type": 1,
+      "source": "Aasen et al. 2016, reduced GJ communication in tumors"
+    }
+  ]
+}

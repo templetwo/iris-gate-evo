@@ -1,0 +1,9 @@
+# IRIS Gate Evo — Dependencies
+# Install: pip install -r requirements.txt
+
+litellm>=1.40            # Unified LLM API dispatch
+sentence-transformers    # all-MiniLM-L6-v2 for cosine similarity
+scipy                    # Jensen-Shannon Divergence
+numpy                    # Monte Carlo + statistics
+pyyaml                   # Config and plan files
+python-dotenv            # .env loader

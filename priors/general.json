@@ -1,0 +1,6 @@
+{
+  "domain": "general",
+  "version": "0.1.0",
+  "description": "Fallback priors when no domain-specific priors match. Provides structural constraints only.",
+  "priors": []
+}

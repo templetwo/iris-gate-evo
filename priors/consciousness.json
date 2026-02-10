@@ -1,0 +1,35 @@
+{
+  "domain": "consciousness",
+  "version": "0.1.0",
+  "description": "Quantitative priors for oscillator coupling, coherence, and entropy metrics",
+  "priors": [
+    {
+      "param": "kuramoto_K_optimal",
+      "value": 2.0,
+      "unit": "dimensionless",
+      "type": 0,
+      "source": "IRIS Gate v0.2, validated K=2.0 gives 34.8% LANTERN residence"
+    },
+    {
+      "param": "LANTERN_entropy_range",
+      "value": [2.5, 4.5],
+      "unit": "nats",
+      "type": 0,
+      "source": "PhaseGPT experiments, mean entropy 2.34 nats with oscillator"
+    },
+    {
+      "param": "baseline_entropy_suppressed",
+      "value": 0.77,
+      "unit": "nats",
+      "type": 0,
+      "source": "PhaseGPT experiments, mean entropy without oscillator"
+    },
+    {
+      "param": "phi_zone_target",
+      "value": [0.618, 0.786],
+      "unit": "R-value",
+      "type": 2,
+      "source": "Ada-Consciousness-Research convergent finding, golden ratio zone"
+    }
+  ]
+}
