@@ -322,8 +322,14 @@ async def run_full_pipeline(compiled: dict, args) -> dict:
             }
         if s2_result:
             partial_stage_data["s2_synthesis"] = {
-                "synthesized_claims": s2_result.get("synthesized_claims", []),
-                "conflicts": s2_result.get("conflicts", []),
+                "synthesized_claims": [
+                    asdict(c) if hasattr(c, '__dict__') else c
+                    for c in s2_result.get("synthesized_claims", [])
+                ],
+                "conflicts": [
+                    asdict(c) if hasattr(c, '__dict__') else c
+                    for c in s2_result.get("conflicts", [])
+                ],
                 "total_rounds": s2_result.get("total_rounds", 0),
                 "snapshots": [
                     asdict(s) if hasattr(s, '__dict__') else s
@@ -435,11 +441,17 @@ async def run_full_pipeline(compiled: dict, args) -> dict:
             "total_calls": s1_result.get("total_calls", 0),
         }
 
-    # S2: synthesis
+    # S2: synthesis (serialize SynthesizedClaim objects as dicts, not repr strings)
     if s2_result:
         stage_data["s2_synthesis"] = {
-            "synthesized_claims": s2_result.get("synthesized_claims", []),
-            "conflicts": s2_result.get("conflicts", []),
+            "synthesized_claims": [
+                asdict(c) if hasattr(c, '__dict__') else c
+                for c in s2_result.get("synthesized_claims", [])
+            ],
+            "conflicts": [
+                asdict(c) if hasattr(c, '__dict__') else c
+                for c in s2_result.get("conflicts", [])
+            ],
             "total_rounds": s2_result.get("total_rounds", 0),
             "early_stopped": s2_result.get("early_stopped", False),
             "snapshots": [
@@ -481,6 +493,22 @@ async def run_full_pipeline(compiled: dict, args) -> dict:
     n_files = len([k for k in paths if k != 'dir'])
     print(f"  {n_files} files ({', '.join(k for k in sorted(paths) if k != 'dir')})")
     print(f"\nTotal LLM calls: {total_calls}")
+
+    # Optional: cross-run comparison against all existing runs
+    if getattr(args, 'cross_run', False):
+        from src.cross_run import find_runs, cross_match as xmatch
+        print("\nRunning cross-run analysis...")
+        all_runs = find_runs([str(output_dir)])
+        if len(all_runs) >= 2:
+            xresult = xmatch(all_runs)
+            if xresult.matches:
+                print(f"  {len(xresult.matches)} cross-run matches found:")
+                for m in xresult.matches[:5]:
+                    print(f"    [{m.classification}] cos={m.cosine} | {m.run_a} ↔ {m.run_b}")
+            else:
+                print("  No cross-run matches above threshold.")
+        else:
+            print("  Need 2+ runs for cross-run analysis.")
 
     return package
 
@@ -552,6 +580,11 @@ def main():
         "--no-dashboard",
         action="store_true",
         help="Disable live dashboard (plain text output)",
+    )
+    parser.add_argument(
+        "--cross-run",
+        action="store_true",
+        help="After pipeline, compare this session against all existing runs",
     )
 
     args = parser.parse_args()

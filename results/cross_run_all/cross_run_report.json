@@ -1,0 +1,95 @@
+{
+  "timestamp": "2026-02-11T18:35:47.502280+00:00",
+  "runs_analyzed": [
+    {
+      "session_id": "evo_20260210_232904_pharmacology",
+      "domain": "pharmacology",
+      "question": "What mechanisms explain why low-dose lithium is neuroprotective while therapeutic-dose lithium causes nephrotoxicity, and what molecular targets determine the dose-dependent switch between cytoprotect",
+      "s3_passed": false,
+      "n_claims": 13
+    },
+    {
+      "session_id": "evo_20260210_235609_pharmacology",
+      "domain": "pharmacology",
+      "question": "What mechanisms explain why low-dose lithium is neuroprotective while therapeutic-dose lithium causes nephrotoxicity?",
+      "s3_passed": false,
+      "n_claims": 9
+    },
+    {
+      "session_id": "evo_20260211_024747_pharmacology",
+      "domain": "pharmacology",
+      "question": "What are the mechanisms by which chronic low-dose THC produces sustained improvements in subjective wellbeing, and how does CB1 receptor modulation interact with endocannabinoid tone to produce therap",
+      "s3_passed": false,
+      "n_claims": 9
+    },
+    {
+      "session_id": "evo_20260211_024750_neuroscience",
+      "domain": "neuroscience",
+      "question": "What mechanisms explain the finding that low-dose THC reverses age-related cognitive decline in animal models, and does chronic CB1 activation restore neuroplasticity through BDNF, neurogenesis, or sy",
+      "s3_passed": false,
+      "n_claims": 7
+    }
+  ],
+  "cross_matches": [
+    {
+      "run_a": "evo_20260211_024747_pharmacology",
+      "run_b": "evo_20260211_024750_neuroscience",
+      "cosine": 0.7914,
+      "classification": "CROSS-PROMOTED",
+      "type_a": 2,
+      "type_b": 0,
+      "statement_a": "1:** Chronic low-dose THC (\u22642.5 mg/day) improves wellbeing via *biphasic CB1 signaling*: G-protein activation (EC50 ~10 nM) dominates at 10\u201330% occupancy, while \u03b2-arrestin recruitment (EC50 >100 nM) i",
+      "statement_b": "1:** The biphasic (inverted-U) dose-response of THC occurs because low CB1 occupancy (<20%) preferentially engages Gi/o-ERK-CREB-BDNF signaling, while high occupancy recruits \u03b2-arrestin-2, causing rec",
+      "mechanism_a": "Partial agonism at CB1 maintains receptor sensitivity by favoring G-protein coupling over \u03b2-arrestin, preventing desensitization while enhancing tonic endocannabinoid signaling.",
+      "mechanism_b": "Low-dose THC produces biased signaling at CB1, sustaining Gi/o coupling to ERK/CREB without triggering \u03b2-arrestin-mediated internalization, thereby upregulating BDNF."
+    },
+    {
+      "run_a": "evo_20260210_232904_pharmacology",
+      "run_b": "evo_20260210_235609_pharmacology",
+      "cosine": 0.7765,
+      "classification": "CROSS-VALIDATED SINGULAR",
+      "type_a": 3,
+      "type_b": 0,
+      "statement_a": "Lithium neuroprotection at low dose (<0.5 mM) primarily via partial GSK3\u03b2 inhibition (IC50 1-2 mM), stabilizing \u03b2-catenin, upregulating BDNF and autophagy.",
+      "statement_b": "2:** Neuroprotection at low dose is mediated primarily by indirect GSK-3\u03b2 inhibition via Akt-Ser9 phosphorylation amplification, with effective EC50 ~0.2\u20130.5 mM intracellular \u2014 achievable at plasma [L",
+      "mechanism_a": "Li+ mimics Mg2+ uncompetitively at GSK3\u03b2 active site, reducing phosphorylation of pro-apoptotic substrates proportionally to dose.",
+      "mechanism_b": "Li\u207a inhibits PP1/PP2A-mediated dephosphorylation of Akt-phosphorylated GSK-3\u03b2-Ser9, creating a signal amplification loop where small [Li\u207a] produces disproportionate GSK-3\u03b2 suppression."
+    }
+  ],
+  "cross_validated_singulars": [
+    {
+      "run_a": "evo_20260210_232904_pharmacology",
+      "run_b": "evo_20260210_235609_pharmacology",
+      "cosine": 0.7765,
+      "classification": "CROSS-VALIDATED SINGULAR",
+      "type_a": 3,
+      "type_b": 0,
+      "statement_a": "Lithium neuroprotection at low dose (<0.5 mM) primarily via partial GSK3\u03b2 inhibition (IC50 1-2 mM), stabilizing \u03b2-catenin, upregulating BDNF and autophagy.",
+      "statement_b": "2:** Neuroprotection at low dose is mediated primarily by indirect GSK-3\u03b2 inhibition via Akt-Ser9 phosphorylation amplification, with effective EC50 ~0.2\u20130.5 mM intracellular \u2014 achievable at plasma [L",
+      "mechanism_a": "Li+ mimics Mg2+ uncompetitively at GSK3\u03b2 active site, reducing phosphorylation of pro-apoptotic substrates proportionally to dose.",
+      "mechanism_b": "Li\u207a inhibits PP1/PP2A-mediated dephosphorylation of Akt-phosphorylated GSK-3\u03b2-Ser9, creating a signal amplification loop where small [Li\u207a] produces disproportionate GSK-3\u03b2 suppression."
+    }
+  ],
+  "independent_replications": [],
+  "structural_patterns": {
+    "threshold_crossover": [
+      "evo_20260210_232904_pharmacology",
+      "evo_20260210_235609_pharmacology",
+      "evo_20260211_024747_pharmacology",
+      "evo_20260211_024750_neuroscience"
+    ],
+    "dose_dependent": [
+      "evo_20260210_232904_pharmacology",
+      "evo_20260211_024747_pharmacology"
+    ]
+  },
+  "stats": {
+    "total_claims": 38,
+    "cross_matches_found": 2,
+    "cross_validated_singulars": 1,
+    "convergent_singulars": 0,
+    "independent_replications": 0,
+    "cross_promoted": 1,
+    "structural_patterns_found": 2
+  }
+}

@@ -1,0 +1,50 @@
+{
+  "timestamp": "2026-02-11T18:35:34.215205+00:00",
+  "runs_analyzed": [
+    {
+      "session_id": "evo_20260211_024747_pharmacology",
+      "domain": "pharmacology",
+      "question": "What are the mechanisms by which chronic low-dose THC produces sustained improvements in subjective wellbeing, and how does CB1 receptor modulation interact with endocannabinoid tone to produce therap",
+      "s3_passed": false,
+      "n_claims": 9
+    },
+    {
+      "session_id": "evo_20260211_024750_neuroscience",
+      "domain": "neuroscience",
+      "question": "What mechanisms explain the finding that low-dose THC reverses age-related cognitive decline in animal models, and does chronic CB1 activation restore neuroplasticity through BDNF, neurogenesis, or sy",
+      "s3_passed": false,
+      "n_claims": 7
+    }
+  ],
+  "cross_matches": [
+    {
+      "run_a": "evo_20260211_024747_pharmacology",
+      "run_b": "evo_20260211_024750_neuroscience",
+      "cosine": 0.7914,
+      "classification": "CROSS-PROMOTED",
+      "type_a": 2,
+      "type_b": 0,
+      "statement_a": "1:** Chronic low-dose THC (\u22642.5 mg/day) improves wellbeing via *biphasic CB1 signaling*: G-protein activation (EC50 ~10 nM) dominates at 10\u201330% occupancy, while \u03b2-arrestin recruitment (EC50 >100 nM) i",
+      "statement_b": "1:** The biphasic (inverted-U) dose-response of THC occurs because low CB1 occupancy (<20%) preferentially engages Gi/o-ERK-CREB-BDNF signaling, while high occupancy recruits \u03b2-arrestin-2, causing rec",
+      "mechanism_a": "Partial agonism at CB1 maintains receptor sensitivity by favoring G-protein coupling over \u03b2-arrestin, preventing desensitization while enhancing tonic endocannabinoid signaling.",
+      "mechanism_b": "Low-dose THC produces biased signaling at CB1, sustaining Gi/o coupling to ERK/CREB without triggering \u03b2-arrestin-mediated internalization, thereby upregulating BDNF."
+    }
+  ],
+  "cross_validated_singulars": [],
+  "independent_replications": [],
+  "structural_patterns": {
+    "threshold_crossover": [
+      "evo_20260211_024747_pharmacology",
+      "evo_20260211_024750_neuroscience"
+    ]
+  },
+  "stats": {
+    "total_claims": 16,
+    "cross_matches_found": 1,
+    "cross_validated_singulars": 0,
+    "convergent_singulars": 0,
+    "independent_replications": 0,
+    "cross_promoted": 1,
+    "structural_patterns_found": 1
+  }
+}
