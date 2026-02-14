@@ -8,7 +8,7 @@ A multi-LLM convergence protocol for scientific discovery. Five independent mode
 
 ## Current State (2026-02-14)
 
-**v0.3.2 — FULL PIPELINE VALIDATED. VDAC ATLAS MANUSCRIPT COMPLETE.**
+**v0.3.3 — CROSS-RUN CONVERGENCE TOOL. VDAC ATLAS v1.0 RELEASED.**
 
 Full pipeline: C0 → S1 → S2 → S3 → VERIFY → GATE → S4 → S5 → S6.
 
@@ -26,6 +26,8 @@ Full pipeline: C0 → S1 → S2 → S3 → VERIFY → GATE → S4 → S5 → S6.
 | VDAC biomarkers | pharmacology | S3 PASSED | GSH/GSSG predictive; mitochondrial panel pharmacodynamic only |
 | VDAC drug interactions | pharmacology | S3 PASSED (0.9547) | VPA opens VDAC, NAPQI closes it — opposite gating, both hepatotoxic |
 | VDAC membrane architecture | pharmacology | S3 PASSED (0.9047) | Honeycomb as structural gate; CBD may be membrane chaotrope |
+| Psilocybin dose-response | pharmacology | S3 PASSED | 5-HT2A occupancy biphasic: BDNF/mTOR vs glutamate flood |
+| Metformin dose-response | pharmacology | S3 PASSED | Complex I block biphasic: AMPK activation vs PMF collapse |
 
 ### VDAC Pharmacology Atlas — MANUSCRIPT COMPLETE
 Six-layer portrait: Protein → Gate → Atlas → Disease → Method → Frame
@@ -34,10 +36,21 @@ Six-layer portrait: Protein → Gate → Atlas → Disease → Method → Frame
 - Gold files: `iris-evo-findings/gold/` (19 documents)
 
 ### Structural Isomorphism Discovery
-Three independent runs surfaced the **same pattern**: molecule is stress test, dose picks pathway, tissue determines outcome.
+Five independent runs surfaced the **same pattern**: molecule is stress test, dose picks pathway, tissue determines outcome.
 - CBD: VDAC1 conductance → cancer (high ROS) vs healthy (low ROS)
 - Lithium: GSK-3β inhibition → therapeutic (<1mM) vs toxic (>2mM)
 - THC: CB1 occupancy → G-protein biased (<30%) vs beta-arrestin (>30%)
+- Psilocybin: 5-HT2A occupancy → BDNF/mTOR (20-50%) vs glutamate flood (>60%)
+- Metformin: Complex I block → AMPK activation (20-40%) vs PMF collapse (>50%)
+
+### Cross-Run Convergence Tool
+Post-hoc analysis that embeds claims across multiple runs, finds semantic matches the S3 gate misses.
+- CLI: `python cross_run.py --all --dirs runs/ ~/iris-evo-findings/runs/`
+- 18 runs analyzed, 159 claims, 11,881 pairwise comparisons, 6 cross-matches (cosine ≥ 0.75)
+- Zero API calls — reuses all-MiniLM-L6-v2 embeddings
+- Reclassification: CROSS-VALIDATED SINGULAR, CONVERGENT SINGULAR, INDEPENDENT REPLICATION, CROSS-PROMOTED
+- Structural pattern detection: `threshold_crossover` in 11/18 runs, `dose_dependent` in 8/18
+- Results: `results/cross_run/cross_run_report.json` + `cross_run_summary.md`
 
 ### Pipeline Features
 - C0 compiles across 11 domains with hybrid keyword+embedding detection
@@ -71,7 +84,7 @@ Three independent runs surfaced the **same pattern**: molecule is stress test, d
 S3 gate measures claim-level TYPE overlap, but real convergence can exist at the mechanistic level.
 Both THC runs failed S3 but independently discovered the same two-pathway framework (CB1 occupancy model).
 Singulars from one run become convergence evidence when another run surfaces the same mechanism.
-**Need: gold extraction tool for mining failed S3 runs** (see unc_007 in uncertainty_log.json).
+**Solved**: Cross-run convergence tool (`cross_run.py`) now mines this gold automatically across all runs.
 
 ## Build Order
 
@@ -155,6 +168,11 @@ Do NOT use older strings from iris-gate v0.2.
 | `priors/*.json` | Quantitative priors across 11 scientific domains |
 | `src/dashboard.py` | Live terminal dashboard — ANSI real-time metrics |
 | `runs/` | Structured output: `runs/{session_id}/` with per-stage JSON |
+| `cross_run.py` | Cross-run convergence CLI — `--all --dirs` for retroactive analysis |
+| `src/cross_run/loader.py` | Parse claims from s2_synthesis.json (dict + legacy repr formats) |
+| `src/cross_run/matcher.py` | Embed + cross-compare claims across runs (cosine ≥ 0.75) |
+| `src/cross_run/report.py` | Generate JSON + markdown cross-run reports |
+| `results/cross_run/` | Cross-run analysis output (report.json + summary.md) |
 | `tests/` | Tests across 11 test files |
 
 ## Lineage
@@ -169,7 +187,7 @@ Do NOT use older strings from iris-gate v0.2.
 
 - **unc_003**: Will 0.70 complete-linkage threshold generalize to non-pharmacology domains?
 - **unc_006**: S3 gate can't distinguish "models disagree on mechanism" from "models agree on mechanism but disagree on priority"
-- **unc_007**: No gold extraction tool for mining failed S3 runs
+- **unc_007**: ~~No gold extraction tool for mining failed S3 runs~~ RESOLVED — cross_run.py
 
 ## Test Question (Pipeline Validation)
 
