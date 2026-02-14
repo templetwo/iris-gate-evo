@@ -6,13 +6,13 @@
 
 A multi-LLM convergence protocol for scientific discovery. Five independent models receive the same compiled prompt, respond independently, and the SYSTEM finds convergence through semantic claim embedding + complete-linkage clustering. The output is a falsifiable protocol package — not an opinion.
 
-## Current State (2026-02-11)
+## Current State (2026-02-14)
 
-**v0.3.2 — FULL PIPELINE VALIDATED ACROSS DOMAINS.**
+**v0.3.2 — FULL PIPELINE VALIDATED. VDAC ATLAS MANUSCRIPT COMPLETE.**
 
 Full pipeline: C0 → S1 → S2 → S3 → VERIFY → GATE → S4 → S5 → S6.
 
-### Live Fire Results
+### Live Fire Results (20 runs total)
 | Question | Domain | Outcome | Key Finding |
 |----------|--------|---------|-------------|
 | CBD/VDAC1 cytotoxicity | pharmacology | S3 PASSED, 3 hypotheses | Two-pathway model: dose picks pathway, tissue determines outcome |
@@ -20,6 +20,18 @@ Full pipeline: C0 → S1 → S2 → S3 → VERIFY → GATE → S4 → S5 → S6.
 | THC sustained wellbeing | pharmacology | S3 FAILED (rich gold) | CB1 occupancy <30% = G-protein biased (therapeutic) |
 | THC aging neuroprotection | neuroscience | S3 FAILED (rich gold) | 5/5 TYPE 0 on GABAergic disinhibition |
 | Mitochondrial unification | neuroscience | S3 FAILED | Genuine scientific disagreement |
+| VDAC isoform/binding | pharmacology | S3 PASSED | Three non-overlapping binding sites, VDAC2 selectivity |
+| VDAC cofactor landscape | pharmacology | S3 PASSED | Cofactor equation: Threshold = K/[(1-f_HKII)(1-f_BclxL)]*(Chol/CL) |
+| VDAC lipid modulation | pharmacology | S3 PASSED (0.9512) | Cancer cholesterol lowers CBD Kd from 11→3-6 uM |
+| VDAC biomarkers | pharmacology | S3 PASSED | GSH/GSSG predictive; mitochondrial panel pharmacodynamic only |
+| VDAC drug interactions | pharmacology | S3 PASSED (0.9547) | VPA opens VDAC, NAPQI closes it — opposite gating, both hepatotoxic |
+| VDAC membrane architecture | pharmacology | S3 PASSED (0.9047) | Honeycomb as structural gate; CBD may be membrane chaotrope |
+
+### VDAC Pharmacology Atlas — MANUSCRIPT COMPLETE
+Six-layer portrait: Protein → Gate → Atlas → Disease → Method → Frame
+- 139 claims, 22 novel findings, 24 hypotheses, 3 pharmacovigilance alerts
+- Manuscript: `vdac-pharmacology-atlas/paper/manuscript.md`
+- Gold files: `iris-evo-findings/gold/` (19 documents)
 
 ### Structural Isomorphism Discovery
 Three independent runs surfaced the **same pattern**: molecule is stress test, dose picks pathway, tissue determines outcome.
