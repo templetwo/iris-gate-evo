@@ -10,7 +10,7 @@ IRIS Gate Evo sends the same compiled research question to five independent AI m
 
 Independence is non-negotiable: models never see each other's outputs. Convergence is observed, not negotiated.
 
-## Architecture (v0.3.1)
+## Architecture (v0.3.3)
 
 ```
 User Question
@@ -161,6 +161,8 @@ All tests passing as of 2026-02-10.
 
 ## Related Projects
 
+- [**vdac-pharmacology-atlas**](https://github.com/templetwo/vdac-pharmacology-atlas): VDAC1 gate-jamming manuscript — transcriptomic validation across TCGA, analysis code, and supplementary data. [Preprint: 10.21203/rs.3.rs-8935902/v1](https://doi.org/10.21203/rs.3.rs-8935902/v1)
+- [**VDAC1-Gate-Opening-Therapeutic-Stack**](https://github.com/templetwo/VDAC1-Gate-Opening-Therapeutic-Stack): Strategic Architecture Document — experimental plan, bench protocols, GJS simulations, and 90-reference bibliography
 - [**cbd-two-pathway-model**](https://github.com/templetwo/cbd-two-pathway-model): The hypothesis paper computationally validated by this engine
 - [**iris-gate**](https://github.com/templetwo/iris-gate) (legacy): v0.2 debate architecture (185-350 LLM calls per run)
 
@@ -197,7 +199,21 @@ Vasquez, A. J. (2026). IRIS Gate Evo: Multi-LLM Convergence Protocol for Scienti
 GitHub repository: https://github.com/templetwo/iris-gate-evo
 ```
 
+If referencing the VDAC1 gate-jamming findings produced by this engine:
+
+```bibtex
+@article{vasquez2026vdac1,
+  title={Context-Specific Innate Immune Evasion via VDAC1 Gate-Jamming
+         in Microsatellite-Stable Colorectal Cancer},
+  author={Vasquez, Anthony J.},
+  year={2026},
+  doi={10.21203/rs.3.rs-8935902/v1},
+  journal={Research Square (Preprint)}
+}
+```
+
 ---
 
-**Status**: v0.3.1 (2026-02-10)
+**Status**: v0.3.3 (2026-02-14)
+**20 runs completed** | 5 structural isomorphisms discovered | VDAC Pharmacology Atlas published
 **Last validated**: CBD/VDAC1 two-pathway model, 10/21 Lab Gate pass rate, Cohen's d 0.81-0.95
